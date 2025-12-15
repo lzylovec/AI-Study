@@ -1,5 +1,11 @@
 :root {
-    --primary-color: #4f46e5;
+    --primary-color: #004098;
+    /* Bootstrap Override */
+    --bs-primary: #004098;
+    --bs-primary-rgb: 0, 64, 152;
+    --bs-link-color: #004098;
+    --bs-link-hover-color: #003072;
+
     --secondary-color: #64748b;
     --success-color: #22c55e;
     --danger-color: #ef4444;
@@ -13,6 +19,31 @@ body {
     color: #1e293b;
 }
 
+/* Bootstrap Overrides */
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+/* Custom background utility to avoid Bootstrap conflicts */
+.bg-primary-soft {
+    background-color: rgba(0, 64, 152, 0.1) !important;
+}
+
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.btn-outline-primary {
+    color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+}
+
 /* Animations */
 .fade-in {
     animation: fadeIn 0.5s ease-in-out;
@@ -23,19 +54,34 @@ body {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 /* Loading Overlay */
 #loading-overlay {
     position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(4px);
     z-index: 9999;
@@ -54,8 +100,13 @@ body {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 /* Custom Components */
@@ -87,7 +138,7 @@ body {
     transform: translateY(-1px);
 }
 
-.form-floating > label {
+.form-floating>label {
     padding-left: 1rem;
 }
 
@@ -108,10 +159,10 @@ body {
 }
 
 .nav-link:hover {
-    background-color: rgba(255,255,255,0.1);
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .nav-link.active {
-    background-color: rgba(255,255,255,0.2) !important;
+    background-color: rgba(255, 255, 255, 0.2) !important;
     font-weight: 600;
 }

@@ -24,6 +24,7 @@
 
   <mvc:resources mapping="/css/**" location="classpath:/static/css/"/>
   <mvc:resources mapping="/js/**" location="classpath:/static/js/"/>
+  <mvc:resources mapping="/images/**" location="classpath:/static/images/"/>
 
   <bean id="templateResolver" class="org.thymeleaf.spring5.templateresolver.SpringResourceTemplateResolver">
     <property name="prefix" value="classpath:/templates/"/>
@@ -43,4 +44,3 @@
     <property name="order" value="1"/>
   </bean>
 </beans>
-

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh" xmlns:th="http://www.thymeleaf.org">
 
-<head th:replace="fragments :: head('语音中心 - AI Study')"></head>
+<head th:replace="fragments :: head('语音中心 - 哈尔滨信息工程学院学习平台')"></head>
 
 <body class="bg-light">
 
@@ -21,7 +21,8 @@
                                 <label class="form-label fw-bold">选择转写模式</label>
                                 <div class="row g-2">
                                     <div class="col-6">
-                                        <input type="radio" class="btn-check" name="mode" id="modeShort" value="short" checked>
+                                        <input type="radio" class="btn-check" name="mode" id="modeShort" value="short"
+                                            checked>
                                         <label class="btn btn-outline-primary w-100 h-100 py-3" for="modeShort">
                                             <i class="fas fa-microphone fa-2x mb-2"></i><br>
                                             短语音转写<br>
@@ -42,7 +43,8 @@
                             <!-- Title Input -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">笔记标题</label>
-                                <input type="text" name="title" id="titleInput" class="form-control" placeholder="请输入标题（可选，默认使用文件名）">
+                                <input type="text" name="title" id="titleInput" class="form-control"
+                                    placeholder="请输入标题（可选，默认使用文件名）">
                             </div>
 
                             <!-- File Input -->
@@ -82,7 +84,7 @@
 
     <script>
         // Auto-fill title from filename
-        document.getElementById('fileInput').addEventListener('change', function(e) {
+        document.getElementById('fileInput').addEventListener('change', function (e) {
             const file = e.target.files[0];
             const titleInput = document.getElementById('titleInput');
             if (file && !titleInput.value) {
@@ -95,10 +97,10 @@
         // Update UI based on mode
         const modeRadios = document.querySelectorAll('input[name="mode"]');
         modeRadios.forEach(radio => {
-            radio.addEventListener('change', function() {
+            radio.addEventListener('change', function () {
                 const btn = document.getElementById('submitBtn');
                 const help = document.getElementById('fileHelp');
-                
+
                 if (this.value === 'short') {
                     btn.className = 'btn btn-primary btn-lg';
                     btn.innerHTML = '<i class="fas fa-bolt me-2"></i>开始实时转写';
@@ -118,7 +120,7 @@
             const mode = formData.get('mode');
             const progressArea = document.getElementById('progressArea');
             const submitBtn = this.querySelector('button[type="submit"]');
-            
+
             // API Endpoint selection
             // Note: Using relative paths to avoid Context Path issues
             const apiEndpoint = mode === 'short' ? 'api/notes/upload-audio' : 'api/notes/upload-long-audio';
