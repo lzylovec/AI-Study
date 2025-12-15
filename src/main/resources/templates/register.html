@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('注册 - AI Study')"></head>
+
+<body class="d-flex align-items-center min-vh-100 bg-light">
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-5 col-lg-4">
+        <div class="card card-custom fade-in">
+          <div class="card-body p-5">
+            <div class="text-center mb-4">
+              <h2 class="fw-bold text-primary"><i class="fas fa-user-plus me-2"></i>创建账号</h2>
+              <p class="text-muted">加入 AI Study 开启学习之旅</p>
+            </div>
+
+            <form id="regForm" onsubmit="return false;">
+              <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="username" placeholder="用户名" required>
+                <label for="username">用户名</label>
+              </div>
+              <div class="form-floating mb-4">
+                <input type="password" class="form-control" id="password" placeholder="密码" required>
+                <label for="password">密码</label>
+              </div>
+
+              <button onclick="doReg()" class="btn btn-primary-custom w-100 mb-3">
+                注册 <i class="fas fa-check ms-2"></i>
+              </button>
+
+              <div class="text-center">
+                <a th:href="@{/}" class="text-decoration-none text-muted">
+                  <i class="fas fa-arrow-left me-1"></i> 返回登录
+                </a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <script th:inline="javascript">
+    async function doReg() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+
+      if (!u || !p) {
+        showToast('warning', '请填写完整信息');
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        params.append('username', u);
+        params.append('password', p);
+
+        const r = await fetch('api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: params
+        });
+
+        const j = await r.json();
+        if (j.ok) {
+          Swal.fire({
+            icon: 'success',
+            title: '注册成功',
+            text: '即将跳转到登录页面',
+            timer: 1500,
+            showConfirmButton: false
+          }).then(() => {
+            // Redirect to context root (login page)
+            location.href = './';
+          });
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: '注册失败',
+            text: j.error || '未知错误'
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        Swal.fire('错误', '网络请求失败', 'error');
+      }
+    }
+  </script>
+</body>
+
+</html>

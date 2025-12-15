@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('控制台 - AI Study')"></head>
+
+<body class="bg-light">
+  <style>
+    /* 侧边栏样式 */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 400px;
+      height: 100vh;
+      background: white;
+      box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+      transition: right 0.3s ease;
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active {
+      right: 0;
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .note-item {
+      padding: 15px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .note-item:hover {
+      background: #f8f9fa;
+      border-color: #0d6efd;
+    }
+
+    .note-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    .note-preview {
+      font-size: 0.9em;
+      color: #666;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #999;
+      margin-top: 50px;
+    }
+  </style>
+
+  <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+  <div class="container fade-in">
+    <div class="row mb-4">
+      <div class="col-12">
+        <h3 class="fw-bold text-dark">欢迎使用 AI Study</h3>
+        <p class="text-muted">选择一个功能开始学习</p>
+      </div>
+    </div>
+
+    <!-- Knowledge Graph Embedded -->
+    <div class="row mb-4">
+      <div class="col-12 position-relative" style="height: 400px;">
+        <div id="graph-container" class="w-100 h-100 bg-white rounded shadow-sm overflow-hidden position-relative">
+          <div class="position-absolute top-0 start-0 p-3 z-10">
+            <h4 class="mb-0"><i class="fas fa-project-diagram me-2 text-primary"></i>知识图谱可视化</h4>
+            <p class="text-muted small mb-0">点击节点查看相关笔记，拖拽调整布局</p>
+          </div>
+          <svg id="svg" width="100%" height="100%"></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 侧边栏 -->
+    <div id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h5 class="mb-0" id="sidebar-title">节点详情</h5>
+        <button type="button" class="btn-close" onclick="closeSidebar()"></button>
+      </div>
+      <div id="sidebar-content">
+        <!-- 内容将通过 JS 动态插入 -->
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Upload Audio Center -->
+      <div class="col-md-6 col-lg-4">
+        <a th:href="@{/upload-audio-center}" class="text-decoration-none">
+          <div class="card card-custom h-100 text-center p-4">
+            <div class="card-body">
+              <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex p-3 mb-3">
+                <i class="fas fa-microphone-alt fa-2x text-primary"></i>
+              </div>
+              <h5 class="card-title text-dark">语音转写中心</h5>
+              <p class="card-text text-muted small">支持短语音实时转写和长录音后台处理。</p>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Upload Center -->
+      <div class="col-md-6 col-lg-4">
+        <a th:href="@{/upload-center}" class="text-decoration-none">
+          <div class="card card-custom h-100 text-center p-4">
+            <div class="card-body">
+              <div class="rounded-circle bg-info bg-opacity-10 d-inline-flex p-3 mb-3">
+                <i class="fas fa-cloud-upload-alt fa-2x text-info"></i>
+              </div>
+              <h5 class="card-title text-dark">资源上传中心</h5>
+              <p class="card-text text-muted small">统一上传入口：生成笔记或添加图谱素材。</p>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Notes -->
+      <div class="col-md-6 col-lg-4">
+        <a th:href="@{/notes}" class="text-decoration-none">
+          <div class="card card-custom h-100 text-center p-4">
+            <div class="card-body">
+              <div class="rounded-circle bg-warning bg-opacity-10 d-inline-flex p-3 mb-3">
+                <i class="fas fa-sticky-note fa-2x text-warning"></i>
+              </div>
+              <h5 class="card-title text-dark">我的笔记</h5>
+              <p class="card-text text-muted small">查看和管理所有生成的笔记。</p>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <!-- D3 and Graph -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script th:src="@{/js/graph.js}"></script>
+</body>
+
+</html>

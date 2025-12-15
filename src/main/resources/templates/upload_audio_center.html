@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('语音中心 - AI Study')"></head>
+
+<body class="bg-light">
+
+    <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+    <div class="container fade-in">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card card-custom p-4">
+                    <div class="card-body">
+                        <h3 class="card-title text-center mb-4">语音转写中心</h3>
+                        <p class="text-muted text-center mb-4">选择适合的模式将语音转换为笔记。</p>
+
+                        <form id="uploadForm">
+                            <!-- Mode Selection -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">选择转写模式</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <input type="radio" class="btn-check" name="mode" id="modeShort" value="short" checked>
+                                        <label class="btn btn-outline-primary w-100 h-100 py-3" for="modeShort">
+                                            <i class="fas fa-microphone fa-2x mb-2"></i><br>
+                                            短语音转写<br>
+                                            <small class="text-muted" style="font-size: 0.8rem;">60秒内 / 实时出稿</small>
+                                        </label>
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="radio" class="btn-check" name="mode" id="modeLong" value="long">
+                                        <label class="btn btn-outline-success w-100 h-100 py-3" for="modeLong">
+                                            <i class="fas fa-file-audio fa-2x mb-2"></i><br>
+                                            长语音转写<br>
+                                            <small class="text-muted" style="font-size: 0.8rem;">不限时长 / 后台处理</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Title Input -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">笔记标题</label>
+                                <input type="text" name="title" id="titleInput" class="form-control" placeholder="请输入标题（可选，默认使用文件名）">
+                            </div>
+
+                            <!-- File Input -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">选择音频文件</label>
+                                <input type="file" name="file" id="fileInput" class="form-control form-control-lg"
+                                    accept="audio/*" required>
+                                <div class="form-text" id="fileHelp">支持 WAV, MP3, M4A 等常见音频格式。</div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-bolt me-2"></i>开始实时转写
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Progress Area -->
+                        <div id="progressArea" class="mt-4 d-none">
+                            <div class="d-flex align-items-center mb-2">
+                                <strong class="text-primary" id="progressText">正在上传...</strong>
+                                <div class="spinner-border spinner-border-sm ms-auto text-primary" role="status"></div>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                    style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="fragments :: loading"></div>
+    <div th:replace="fragments :: scripts"></div>
+
+    <script>
+        // Auto-fill title from filename
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const titleInput = document.getElementById('titleInput');
+            if (file && !titleInput.value) {
+                // Remove extension
+                const name = file.name.replace(/\.[^/.]+$/, "");
+                titleInput.value = name;
+            }
+        });
+
+        // Update UI based on mode
+        const modeRadios = document.querySelectorAll('input[name="mode"]');
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                const btn = document.getElementById('submitBtn');
+                const help = document.getElementById('fileHelp');
+                
+                if (this.value === 'short') {
+                    btn.className = 'btn btn-primary btn-lg';
+                    btn.innerHTML = '<i class="fas fa-bolt me-2"></i>开始实时转写';
+                    help.innerText = "支持 WAV, MP3 等格式。注意：文件需小于 60 秒。";
+                } else {
+                    btn.className = 'btn btn-success btn-lg';
+                    btn.innerHTML = '<i class="fas fa-hourglass-half me-2"></i>提交后台任务';
+                    help.innerText = "支持 MP3, WAV, M4A 等格式。文件较大时请耐心等待上传。";
+                }
+            });
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const mode = formData.get('mode');
+            const progressArea = document.getElementById('progressArea');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // API Endpoint selection
+            // Note: Using relative paths to avoid Context Path issues
+            const apiEndpoint = mode === 'short' ? 'api/notes/upload-audio' : 'api/notes/upload-long-audio';
+
+            // UI Loading State
+            progressArea.classList.remove('d-none');
+            submitBtn.disabled = true;
+            document.getElementById('progressText').innerText = mode === 'short' ? "正在上传并实时转写..." : "正在上传到云端...";
+
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '操作失败',
+                        text: result.error
+                    });
+                } else {
+                    if (mode === 'short') {
+                        // Short Audio Success
+                        Swal.fire({
+                            icon: 'success',
+                            title: '转写成功！',
+                            text: '笔记已创建。',
+                            confirmButtonText: '查看笔记'
+                        }).then(() => {
+                            window.location.href = 'notes';
+                        });
+                    } else {
+                        // Long Audio Success
+                        Swal.fire({
+                            icon: 'success',
+                            title: '任务已提交',
+                            text: '长语音转写需要一定时间，请在笔记列表中查看进度。',
+                            confirmButtonText: '前往笔记列表'
+                        }).then(() => {
+                            window.location.href = 'notes';
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '系统错误',
+                    text: '无法连接到服务器'
+                });
+            } finally {
+                progressArea.classList.add('d-none');
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+
+</body>
+
+</html>

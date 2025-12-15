@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.kgraph.mapper.RelationMapper">
+  <insert id="insertBatch">
+    INSERT INTO relations(user_id, source_id, target_id, relation_type, weight)
+    <foreach collection="list" item="r" separator=",">
+      (#{r.userId}, #{r.sourceId}, #{r.targetId}, #{r.relationType}, #{r.weight})
+    </foreach>
+  </insert>
+  <select id="findByUserId" resultType="com.study.kgraph.entity.Relation">
+    SELECT id, user_id as userId, source_id as sourceId, target_id as targetId, relation_type as relationType, weight FROM relations WHERE user_id = #{userId}
+  </select>
+</mapper>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('上传中心 - AI Study')"></head>
+
+<body class="bg-light">
+
+    <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+    <div class="container fade-in">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card card-custom p-4">
+                    <div class="card-body">
+                        <h3 class="card-title text-center mb-4">资源上传中心</h3>
+                        <p class="text-muted text-center mb-4">上传文档以生成智能笔记，或作为知识图谱的素材。</p>
+
+                        <form id="uploadForm">
+                            <!-- Mode Selection -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">选择处理方式</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <input type="radio" class="btn-check" name="mode" id="modeNote" value="note" checked>
+                                        <label class="btn btn-outline-primary w-100 h-100 py-3" for="modeNote">
+                                            <i class="fas fa-file-alt fa-2x mb-2"></i><br>
+                                            生成智能笔记
+                                        </label>
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="radio" class="btn-check" name="mode" id="modeGraph" value="graph">
+                                        <label class="btn btn-outline-secondary w-100 h-100 py-3" for="modeGraph">
+                                            <i class="fas fa-project-diagram fa-2x mb-2"></i><br>
+                                            知识图谱素材
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Title Input -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">文档标题</label>
+                                <input type="text" name="title" id="titleInput" class="form-control" placeholder="请输入标题（可选，默认使用文件名）">
+                            </div>
+
+                            <!-- File Input -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">选择文件</label>
+                                <input type="file" name="file" id="fileInput" class="form-control form-control-lg"
+                                    accept=".doc,.docx,.pdf,.txt,.ppt,.pptx" required>
+                                <div class="form-text" id="fileHelp">支持 Word, PDF, TXT, PPT 等格式。</div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-cloud-upload-alt me-2"></i>开始上传处理
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Progress Area -->
+                        <div id="progressArea" class="mt-4 d-none">
+                            <div class="d-flex align-items-center mb-2">
+                                <strong class="text-primary" id="progressText">正在上传...</strong>
+                                <div class="spinner-border spinner-border-sm ms-auto text-primary" role="status"></div>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                    style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="fragments :: loading"></div>
+    <div th:replace="fragments :: scripts"></div>
+
+    <script>
+        // Auto-fill title from filename
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const titleInput = document.getElementById('titleInput');
+            if (file && !titleInput.value) {
+                // Remove extension
+                const name = file.name.replace(/\.[^/.]+$/, "");
+                titleInput.value = name;
+            }
+        });
+
+        // Update UI based on mode
+        const modeRadios = document.querySelectorAll('input[name="mode"]');
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                const btn = document.getElementById('submitBtn');
+                if (this.value === 'note') {
+                    btn.className = 'btn btn-primary btn-lg';
+                    btn.innerHTML = '<i class="fas fa-magic me-2"></i>上传并生成笔记';
+                } else {
+                    btn.className = 'btn btn-secondary btn-lg';
+                    btn.innerHTML = '<i class="fas fa-save me-2"></i>上传并保存素材';
+                }
+            });
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const mode = formData.get('mode');
+            const progressArea = document.getElementById('progressArea');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // API Endpoint selection
+            const apiEndpoint = mode === 'note' ? 'api/notes/upload-doc' : 'api/material/upload';
+
+            // Check title for material upload
+            if (mode === 'graph' && !formData.get('title')) {
+                Swal.fire('提示', '上传知识图谱素材时，标题不能为空', 'warning');
+                return;
+            }
+
+            // UI Loading State
+            progressArea.classList.remove('d-none');
+            submitBtn.disabled = true;
+            document.getElementById('progressText').innerText = mode === 'note' ? "正在解析文档并生成笔记..." : "正在保存知识图谱素材...";
+
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '上传失败',
+                        text: result.error
+                    });
+                } else {
+                    if (mode === 'note') {
+                        // Note Success Flow -> Ask for Summary
+                        const noteId = result.id;
+                        Swal.fire({
+                            icon: 'success',
+                            title: '文档解析成功！',
+                            text: '内容已保存到笔记。是否立即使用 AI 生成总结？',
+                            showCancelButton: true,
+                            confirmButtonText: '生成 AI 总结',
+                            cancelButtonText: '稍后再说',
+                            confirmButtonColor: '#0d6efd',
+                            cancelButtonColor: '#6c757d'
+                        }).then(async (result) => {
+                            if (result.isConfirmed) {
+                                document.getElementById('progressText').innerText = "正在生成 AI 总结...";
+                                try {
+                                    const sumResponse = await fetch(`api/notes/summarize?id=${noteId}`, { method: 'POST' });
+                                    const sumResult = await sumResponse.json();
+                                    if (sumResult.error) {
+                                        Swal.fire('生成总结失败', sumResult.error, 'error');
+                                    } else {
+                                        Swal.fire({
+                                            icon: 'success',
+                                            title: '总结生成完毕',
+                                            text: '点击确定查看笔记详情',
+                                            confirmButtonText: '查看笔记'
+                                        }).then(() => {
+                                            window.location.href = 'notes';
+                                        });
+                                    }
+                                } catch (err) {
+                                    Swal.fire('错误', '请求失败', 'error');
+                                }
+                            } else {
+                                window.location.href = 'notes';
+                            }
+                        });
+                    } else {
+                        // Graph Material Success Flow
+                        Swal.fire({
+                            icon: 'success',
+                            title: '素材上传成功',
+                            text: '已添加到知识图谱素材库。',
+                            confirmButtonText: '查看知识图谱',
+                            showCancelButton: true,
+                            cancelButtonText: '继续上传'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = 'graph';
+                            } else {
+                                // Reset form
+                                document.getElementById('uploadForm').reset();
+                                document.getElementById('titleInput').value = '';
+                                progressArea.classList.add('d-none');
+                                submitBtn.disabled = false;
+                                return; // Don't fall through to finally block which re-enables button (we want to stay on page)
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '系统错误',
+                    text: '无法连接到服务器'
+                });
+            } finally {
+                // For graph mode continue upload, we handled it above. 
+                // For other cases or errors, reset UI.
+                if (!(mode === 'graph' && !document.querySelector('.swal2-shown'))) { 
+                   // If alert is shown, don't hide progress immediately? No, standard flow.
+                }
+                // Actually, if we are redirecting, it doesn't matter. 
+                // If we stay (error), we should reset.
+                 progressArea.classList.add('d-none');
+                 submitBtn.disabled = false;
+            }
+        });
+    </script>
+
+</body>
+
+</html>

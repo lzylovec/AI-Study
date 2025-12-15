@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.kgraph.mapper.NoteMapper">
+  <resultMap id="NoteMap" type="com.study.kgraph.entity.Note">
+    <id property="id" column="id"/>
+    <result property="userId" column="user_id"/>
+    <result property="title" column="title"/>
+    <result property="text" column="text"/>
+    <result property="audioPath" column="audio_path"/>
+    <result property="summary" column="summary"/>
+    <result property="createdAt" column="created_at"/>
+    <result property="updatedAt" column="updated_at"/>
+  </resultMap>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO notes(user_id, title, text, audio_path, summary) VALUES(#{userId}, #{title}, #{text}, #{audioPath}, #{summary})
+  </insert>
+  <select id="findByUserId" resultMap="NoteMap">
+    SELECT * FROM notes WHERE user_id = #{userId} ORDER BY updated_at DESC
+  </select>
+  <select id="findById" resultMap="NoteMap">
+    SELECT * FROM notes WHERE id = #{id}
+  </select>
+  <select id="search" resultMap="NoteMap">
+    SELECT * FROM notes 
+    WHERE user_id = #{userId} 
+    AND (title LIKE CONCAT('%', #{keyword}, '%') OR text LIKE CONCAT('%', #{keyword}, '%'))
+    ORDER BY updated_at DESC
+  </select>
+  <update id="updateText">
+    UPDATE notes SET text = #{text} WHERE id = #{id}
+  </update>
+  <update id="updateSummary">
+    UPDATE notes SET summary = #{summary} WHERE id = #{id}
+  </update>
+  <delete id="delete">
+    DELETE FROM notes WHERE id = #{id}
+  </delete>
+</mapper>

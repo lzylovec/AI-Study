@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('知识图谱 - AI Study')"></head>
+
+<body class="bg-light d-flex flex-column min-vh-100">
+  <style>
+    /* 侧边栏样式 */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 400px;
+      height: 100vh;
+      background: white;
+      box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+      transition: right 0.3s ease;
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar.active {
+      right: 0;
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .note-item {
+      padding: 15px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .note-item:hover {
+      background: #f8f9fa;
+      border-color: #0d6efd;
+    }
+
+    .note-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    .note-preview {
+      font-size: 0.9em;
+      color: #666;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #999;
+      margin-top: 50px;
+    }
+  </style>
+
+  <div th:replace="fragments :: nav(active='graph')"></div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-12 position-relative" style="height: calc(100vh - 80px);">
+        <div id="graph-container" class="w-100 h-100 bg-white rounded shadow-sm overflow-hidden position-relative">
+          <div class="position-absolute top-0 start-0 p-3 z-10">
+            <h4 class="mb-0"><i class="fas fa-project-diagram me-2 text-primary"></i>知识图谱可视化</h4>
+            <p class="text-muted small mb-0">点击节点查看相关笔记，拖拽调整布局</p>
+          </div>
+          <svg id="svg" width="100%" height="100%"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 侧边栏 -->
+  <div id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <h5 class="mb-0" id="sidebar-title">节点详情</h5>
+      <button type="button" class="btn-close" onclick="closeSidebar()"></button>
+    </div>
+    <div id="sidebar-content">
+      <!-- 内容将通过 JS 动态插入 -->
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <!-- D3.js -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script th:src="@{/js/graph.js}"></script>
+</body>
+
+</html>

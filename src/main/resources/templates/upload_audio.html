@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('短语音转写 - AI Study')"></head>
+
+<body class="bg-light">
+
+  <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+  <div class="container fade-in">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card card-custom">
+          <div class="card-body p-4">
+            <h4 class="fw-bold mb-4 text-primary"><i class="fas fa-microphone me-2"></i>短语音转写</h4>
+            <div class="alert alert-info border-0 bg-info bg-opacity-10 text-info">
+              <i class="fas fa-info-circle me-1"></i> 仅支持60秒以内的短音频文件。
+            </div>
+
+            <form id="uploadForm" onsubmit="return false;">
+              <div class="mb-3">
+                <label for="title" class="form-label fw-bold">标题</label>
+                <input type="text" class="form-control" id="title" placeholder="给笔记起个标题" required>
+              </div>
+              <div class="mb-4">
+                <label for="file" class="form-label fw-bold">音频文件</label>
+                <input type="file" class="form-control" id="file" accept="audio/*" required>
+              </div>
+
+              <div class="d-flex justify-content-between">
+                <a th:href="@{/dashboard}" class="btn btn-outline-secondary">
+                  <i class="fas fa-arrow-left me-1"></i> 返回
+                </a>
+                <button onclick="upload()" class="btn btn-primary-custom">
+                  <i class="fas fa-cloud-upload-alt me-1"></i> 开始转写
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <script th:inline="javascript">
+    async function upload() {
+      const title = document.getElementById('title').value;
+      const fileInput = document.getElementById('file');
+
+      if (!title || fileInput.files.length === 0) {
+        showToast('warning', '请填写标题并选择文件');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const fd = new FormData();
+      fd.append('title', title);
+      fd.append('file', file);
+
+      try {
+        const r = await fetch('api/notes/upload-audio', {
+          method: 'POST',
+          body: fd
+        });
+        const j = await r.json();
+
+        if (j.id) {
+          Swal.fire({
+            icon: 'success',
+            title: '转写成功',
+            text: '笔记已生成',
+            showCancelButton: true,
+            confirmButtonText: '查看笔记',
+            cancelButtonText: '继续上传'
+          }).then((result) => {
+            if (result.isConfirmed) {
+              location.href = 'notes';
+            } else {
+              document.getElementById('uploadForm').reset();
+            }
+          });
+        } else {
+          Swal.fire('失败', j.error || '上传失败', 'error');
+        }
+      } catch (e) {
+        Swal.fire('错误', '网络错误', 'error');
+      }
+    }
+  </script>
+</body>
+
+</html>

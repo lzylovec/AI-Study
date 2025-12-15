@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('长语音转写 - AI Study')"></head>
+
+<body class="bg-light">
+
+  <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+  <div class="container fade-in">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card card-custom">
+          <div class="card-body p-4">
+            <h4 class="fw-bold mb-4 text-success"><i class="fas fa-file-audio me-2"></i>长语音转写</h4>
+            <div class="alert alert-success border-0 bg-success bg-opacity-10 text-success">
+              <i class="fas fa-info-circle me-1"></i> 支持大文件上传，后台异步处理。
+            </div>
+
+            <form id="uploadForm" onsubmit="return false;">
+              <div class="mb-3">
+                <label for="title" class="form-label fw-bold">标题</label>
+                <input type="text" class="form-control" id="title" placeholder="给笔记起个标题" required>
+              </div>
+              <div class="mb-4">
+                <label for="file" class="form-label fw-bold">音频文件</label>
+                <input type="file" class="form-control" id="file" accept="audio/*" required>
+              </div>
+
+              <div class="d-flex justify-content-between">
+                <a th:href="@{/dashboard}" class="btn btn-outline-secondary">
+                  <i class="fas fa-arrow-left me-1"></i> 返回
+                </a>
+                <button onclick="upload()" class="btn btn-success text-white">
+                  <i class="fas fa-cloud-upload-alt me-1"></i> 提交任务
+                </button>
+              </div>
+            </form>
+
+            <div id="status-area" class="mt-4 d-none">
+              <h5 class="fw-bold mb-3">任务状态</h5>
+              <div class="p-3 bg-light rounded border">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="status-spinner">
+                  </div>
+                  <span class="fw-bold" id="status-text">处理中...</span>
+                </div>
+                <div class="progress mb-2" style="height: 6px;">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                    style="width: 100%"></div>
+                </div>
+                <div id="result-area" class="mt-3 d-none">
+                  <label class="small text-muted">识别结果 preview:</label>
+                  <div class="bg-white p-2 border rounded small text-muted" style="max-height: 100px; overflow-y: auto;"
+                    id="result-text"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <script th:inline="javascript">
+    let pollTimer = null;
+
+    async function upload() {
+      const title = document.getElementById('title').value;
+      const fileInput = document.getElementById('file');
+
+      if (!title || fileInput.files.length === 0) {
+        showToast('warning', '请填写标题并选择文件');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const fd = new FormData();
+      fd.append('title', title);
+      fd.append('file', file);
+
+      try {
+        const r = await fetch('api/notes/upload-long-audio', {
+          method: 'POST',
+          body: fd
+        });
+        const j = await r.json();
+
+        if (j.taskId) {
+          showToast('success', '任务已提交');
+          document.getElementById('uploadForm').classList.add('d-none');
+          document.getElementById('status-area').classList.remove('d-none');
+          poll(j.taskId);
+        } else {
+          Swal.fire('失败', j.error || '上传失败', 'error');
+        }
+      } catch (e) {
+        Swal.fire('错误', '网络错误', 'error');
+      }
+    }
+
+    async function poll(taskId) {
+      try {
+        const r = await fetch(`api/notes/filetrans-status?taskId=${taskId}`);
+        const j = await r.json();
+
+        const statusText = document.getElementById('status-text');
+        const resultArea = document.getElementById('result-area');
+        const resultText = document.getElementById('result-text');
+        const spinner = document.getElementById('status-spinner');
+
+        statusText.innerText = `状态: ${j.status}`;
+
+        if (j.status === 'SUCCESS') {
+          spinner.classList.remove('spinner-border');
+          spinner.className = 'fas fa-check-circle text-success me-2';
+          resultArea.classList.remove('d-none');
+          resultText.innerText = j.result ? j.result.substring(0, 200) + '...' : '（无内容）';
+
+          Swal.fire({
+            icon: 'success',
+            title: '转写完成',
+            showCancelButton: true,
+            confirmButtonText: '查看笔记',
+            cancelButtonText: '留在这里'
+          }).then((res) => {
+            if (res.isConfirmed) location.href = 'notes';
+          });
+
+          return; // Stop polling
+        } else if (j.status === 'FAILED') {
+          spinner.classList.remove('spinner-border');
+          spinner.className = 'fas fa-times-circle text-danger me-2';
+          Swal.fire('任务失败', '转写任务失败', 'error');
+          return;
+        }
+
+        pollTimer = setTimeout(() => poll(taskId), 3000);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('我的笔记 - AI Study')"></head>
+
+<body class="bg-light">
+
+  <div th:replace="fragments :: nav(active='notes')"></div>
+
+  <div class="container fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h3 class="fw-bold text-dark mb-0">我的笔记</h3>
+      <button onclick="load()" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-sync-alt me-1"></i> 刷新
+      </button>
+    </div>
+
+    <div id="list" class="row g-4">
+      <!-- Notes injected here -->
+    </div>
+
+    <div id="empty-state" class="text-center py-5 d-none">
+      <div class="text-muted mb-3">
+        <i class="fas fa-sticky-note fa-3x"></i>
+      </div>
+      <p class="text-muted">暂无笔记，快去上传音频或资料生成吧！</p>
+      <a th:href="@{/upload-audio}" class="btn btn-primary-custom btn-sm">去上传</a>
+    </div>
+  </div>
+
+  <!-- Note Detail Modal -->
+  <div class="modal fade" id="noteDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold" id="noteDetailTitle"></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-4">
+            <h6 class="text-muted fw-bold mb-2">原始内容</h6>
+            <div id="noteDetailText" class="p-3 bg-light rounded text-break"
+              style="white-space: pre-wrap; min-height: 100px;"></div>
+          </div>
+          <div id="noteDetailSummaryContainer" class="d-none">
+            <h6 class="text-muted fw-bold mb-2">AI 总结</h6>
+            <div id="noteDetailSummary"
+              class="p-3 bg-info bg-opacity-10 text-dark rounded border border-info markdown-body"
+              style="white-space: normal;"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="me-auto">
+            <button type="button" class="btn btn-outline-danger me-2" onclick="exportPdf()">
+              <i class="fas fa-file-pdf me-1"></i> 导出 PDF
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="exportWord()">
+              <i class="fas fa-file-word me-1"></i> 导出 Word
+            </button>
+          </div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <script th:inline="javascript">
+    let allNotes = [];
+    let currentNoteId = null;
+
+    async function load() {
+      try {
+        const r = await fetch('api/notes/list');
+        const data = await r.json();
+        allNotes = data; // Update global data
+        const c = document.getElementById('list');
+        const empty = document.getElementById('empty-state');
+        c.innerHTML = '';
+
+        if (!data || data.length === 0) {
+          empty.classList.remove('d-none');
+          return;
+        }
+
+        empty.classList.add('d-none');
+
+        data.forEach(n => {
+          const col = document.createElement('div');
+          col.className = 'col-md-6 col-lg-4';
+          col.innerHTML = `
+                        <div class="card card-custom h-100">
+                            <div class="card-body">
+                                <h5 class="card-title fw-bold mb-3 text-truncate" title="${n.title}">${n.title}</h5>
+                                
+                                <div class="mb-2">
+                                    <label class="form-label text-muted small">原始内容</label>
+                                    <textarea class="form-control mb-3" rows="5" id="text-${n.id}">${n.text || ''}</textarea>
+                                </div>
+
+                                <div class="mb-3" id="summary-container-${n.id}" ${n.summary ? '' : 'style="display:none"'}>
+                                    <label class="form-label text-muted small">AI 总结</label>
+                                    <div class="p-3 bg-light rounded border" id="summary-${n.id}" style="max-height: 150px; overflow-y: auto; font-size: 0.9em;">
+                                        ${n.summary || ''}
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteNote(${n.id})">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="viewNote(${n.id})" title="查看详情">
+                                            <i class="fas fa-eye me-1"></i> 详情
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info me-1" onclick="generateSummary(${n.id})">
+                                            <i class="fas fa-magic me-1"></i> AI总结
+                                        </button>
+                                        <button class="btn btn-sm btn-primary-custom" onclick="saveNote(${n.id})">
+                                            <i class="fas fa-save me-1"></i> 保存
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-0 text-muted small d-flex justify-content-between">
+                                <span><i class="far fa-clock me-1"></i> ID: ${n.id}</span>
+                                <span>${n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}</span>
+                            </div>
+                        </div>
+                    `;
+          c.appendChild(col);
+        });
+      } catch (e) {
+        console.error(e);
+        showToast('error', '加载失败');
+      }
+    }
+
+    function viewNote(id) {
+      currentNoteId = id;
+      // Try to find note in local data
+      let note = allNotes.find(n => n.id === id);
+      if (!note) return;
+
+      // Try to get latest text from textarea if possible, to show current edits
+      const currentTextArea = document.getElementById('text-' + id);
+      const currentText = currentTextArea ? currentTextArea.value : note.text;
+
+      // Also try to get latest summary
+      const currentSummaryDiv = document.getElementById('summary-' + id);
+      const currentSummary = currentSummaryDiv ? currentSummaryDiv.innerText : note.summary;
+
+      document.getElementById('noteDetailTitle').innerText = note.title;
+      document.getElementById('noteDetailText').innerText = currentText || '无内容';
+
+      const summaryContainer = document.getElementById('noteDetailSummaryContainer');
+      const summaryText = document.getElementById('noteDetailSummary');
+
+      if (currentSummary && currentSummary.trim().length > 0) {
+        // Configure marked options
+        marked.setOptions({
+          breaks: true, // Enable GFM line breaks
+          gfm: true
+        });
+
+        // Pre-process content to fix layout issues
+        let formattedSummary = currentSummary
+          // Ensure horizontal rules are on new lines
+          .replace(/(\S)---/g, '$1\n\n---\n\n')
+          .replace(/ --- /g, '\n\n---\n\n')
+          // Ensure headers are on new lines
+          .replace(/(\S)##/g, '$1\n\n##')
+          .replace(/ ## /g, '\n\n## ')
+          // Ensure lists are on new lines
+          .replace(/(\S)- /g, '$1\n- ')
+          // Ensure code blocks are on new lines
+          .replace(/(\S)```/g, '$1\n\n```')
+          .replace(/```(\S)/g, '```\n$1');
+
+        summaryText.innerHTML = marked.parse(formattedSummary);
+        summaryContainer.classList.remove('d-none');
+      } else {
+        summaryContainer.classList.add('d-none');
+      }
+
+      const modal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
+      modal.show();
+    }
+
+    async function generateSummary(id) {
+      const btn = event.target.closest('button');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 生成中...';
+
+      try {
+        const fd = new FormData();
+        fd.append('id', id);
+        const r = await fetch('api/notes/summarize', { method: 'POST', body: fd });
+        const data = await r.json();
+
+        if (data.error) {
+          showToast('error', data.error);
+        } else {
+          showToast('success', '总结生成成功');
+          const container = document.getElementById(`summary-container-${id}`);
+          const content = document.getElementById(`summary-${id}`);
+          content.innerText = data.summary;
+          container.style.display = 'block';
+        }
+      } catch (e) {
+        showToast('error', '请求失败');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    async function saveNote(id) {
+      const text = document.getElementById(`text-${id}`).value;
+      const fd = new FormData();
+      fd.append('id', id);
+      fd.append('text', text);
+
+      try {
+        await fetch('api/notes/update', { method: 'POST', body: fd });
+        showToast('success', '已保存');
+      } catch (e) {
+        showToast('error', '保存失败');
+      }
+    }
+
+    async function deleteNote(id) {
+      const result = await Swal.fire({
+        title: '确认删除?',
+        text: "删除后无法恢复",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      });
+
+      if (result.isConfirmed) {
+        try {
+          const fd = new FormData();
+          fd.append('id', id);
+          await fetch('api/notes/delete', { method: 'POST', body: fd });
+          showToast('success', '已删除');
+          load();
+        } catch (e) {
+          showToast('error', '删除失败');
+        }
+      }
+    }
+
+    function exportPdf() {
+      if (!currentNoteId) return;
+      window.location.href = `api/notes/export/pdf?id=${currentNoteId}`;
+    }
+
+    function exportWord() {
+      if (!currentNoteId) return;
+      window.location.href = `api/notes/export/word?id=${currentNoteId}`;
+    }
+
+    load();
+  </script>
+</body>
+
+</html>

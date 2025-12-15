@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('上传文档 - AI Study')"></head>
+
+<body class="bg-light">
+
+    <div th:replace="fragments :: nav(active='dashboard')"></div>
+
+    <div class="container fade-in">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card card-custom p-4">
+                    <div class="card-body">
+                        <h3 class="card-title text-center mb-4">上传文档转笔记</h3>
+                        <p class="text-muted text-center mb-4">支持 Word (.doc, .docx), PDF (.pdf), TXT 等格式</p>
+
+                        <form id="uploadForm">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">选择文件</label>
+                                <input type="file" name="file" class="form-control form-control-lg"
+                                    accept=".doc,.docx,.pdf,.txt,.ppt,.pptx" required>
+                                <div class="form-text">文件将被解析为文本并保存到“我的笔记”中。</div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-file-upload me-2"></i>上传并解析
+                                </button>
+                            </div>
+                        </form>
+
+                        <div id="progressArea" class="mt-4 d-none">
+                            <div class="d-flex align-items-center mb-2">
+                                <strong class="text-primary" id="progressText">正在上传...</strong>
+                                <div class="spinner-border spinner-border-sm ms-auto text-primary" role="status"></div>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                    style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="fragments :: loading"></div>
+    <div th:replace="fragments :: scripts"></div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const progressArea = document.getElementById('progressArea');
+            const submitBtn = this.querySelector('button[type="submit"]');
+
+            // 显示进度条，禁用按钮
+            progressArea.classList.remove('d-none');
+            submitBtn.disabled = true;
+            document.getElementById('progressText').innerText = "正在上传并解析文档...";
+
+            try {
+                const response = await fetch('api/notes/upload-doc', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '上传失败',
+                        text: result.error
+                    });
+                } else {
+                    // 上传成功，询问是否生成总结
+                    const noteId = result.id;
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: '文档解析成功！',
+                        text: '内容已保存到笔记。是否立即使用 AI 生成总结？',
+                        showCancelButton: true,
+                        confirmButtonText: '生成 AI 总结',
+                        cancelButtonText: '稍后再说',
+                        confirmButtonColor: '#0d6efd',
+                        cancelButtonColor: '#6c757d'
+                    }).then(async (result) => {
+                        if (result.isConfirmed) {
+                            // 用户选择生成总结
+                            document.getElementById('progressText').innerText = "正在生成 AI 总结...";
+
+                            try {
+                                const sumResponse = await fetch(`api/notes/summarize?id=${noteId}`, { method: 'POST' });
+                                const sumResult = await sumResponse.json();
+
+                                if (sumResult.error) {
+                                    Swal.fire('生成总结失败', sumResult.error, 'error');
+                                } else {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: '总结生成完毕',
+                                        text: '点击确定查看笔记详情',
+                                        confirmButtonText: '查看笔记'
+                                    }).then(() => {
+                                        window.location.href = 'notes';
+                                    });
+                                }
+                            } catch (err) {
+                                Swal.fire('错误', '请求失败', 'error');
+                            }
+                        } else {
+                            // 用户选择稍后再说
+                            window.location.href = 'notes';
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error(error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '系统错误',
+                    text: '无法连接到服务器'
+                });
+            } finally {
+                progressArea.classList.add('d-none');
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+
+</body>
+
+</html>

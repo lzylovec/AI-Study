@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('登录 - AI Study')"></head>
+
+<body class="d-flex align-items-center min-vh-100 bg-light">
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-5 col-lg-4">
+        <div class="card card-custom fade-in">
+          <div class="card-body p-5">
+            <div class="text-center mb-4">
+              <h2 class="fw-bold text-primary"><i class="fas fa-brain me-2"></i>AI Study</h2>
+              <p class="text-muted">欢迎回来，请登录您的账号</p>
+            </div>
+
+            <form id="loginForm" onsubmit="return false;">
+              <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="username" placeholder="用户名" required>
+                <label for="username">用户名</label>
+              </div>
+              <div class="form-floating mb-4">
+                <input type="password" class="form-control" id="password" placeholder="密码" required>
+                <label for="password">密码</label>
+              </div>
+
+              <button onclick="doLogin()" class="btn btn-primary-custom w-100 mb-3">
+                登录 <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+
+              <div class="text-center">
+                <span class="text-muted">还没有账号？</span>
+                <a th:href="@{/register}" class="text-decoration-none fw-bold">立即注册</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments :: loading"></div>
+  <div th:replace="fragments :: scripts"></div>
+
+  <script th:inline="javascript">
+    /*<![CDATA[*/
+    const contextPath = /*[[@{/}]]*/ '';
+
+    async function doLogin() {
+      const u = document.getElementById('username').value;
+      const p = document.getElementById('password').value;
+      if (!u || !p) {
+        showToast('warning', '请输入用户名和密码');
+        return;
+      }
+
+      try {
+        // Ensure we handle trailing slash in contextPath if needed, but th:href is safer.
+        // For fetch, we can use relative path 'api/auth/login' which works if base is correct.
+        // Or use constructed path.
+
+        const params = new URLSearchParams();
+        params.append('username', u);
+        params.append('password', p);
+
+        const r = await fetch('api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: params
+        });
+
+        const j = await r.json();
+        if (j.ok) {
+          showToast('success', '登录成功');
+          setTimeout(() => location.href = 'dashboard', 1000);
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: '登录失败',
+            text: j.error || '未知错误'
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        Swal.fire('错误', '网络请求失败', 'error');
+      }
+    }
+    /*]]>*/
+  </script>
+</body>
+
+</html>
