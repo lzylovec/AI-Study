@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
-<head th:replace="fragments :: head('登录 - AI Study')"></head>
+<head th:replace="fragments :: head('登录 - 哈尔滨信息工程学院学习平台')"></head>
 
 <body class="d-flex align-items-center min-vh-100 bg-light">
 
@@ -11,7 +11,8 @@
         <div class="card card-custom fade-in">
           <div class="card-body p-5">
             <div class="text-center mb-4">
-              <h2 class="fw-bold text-primary"><i class="fas fa-brain me-2"></i>AI Study</h2>
+              <img th:src="@{/images/logo.png}" src="/images/logo.png" alt="Logo" height="80" class="mb-3">
+              <h4 class="fw-bold text-primary">哈尔滨信息工程学院学习平台</h4>
               <p class="text-muted">欢迎回来，请登录您的账号</p>
             </div>
 

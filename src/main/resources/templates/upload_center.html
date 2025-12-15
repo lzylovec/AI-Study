@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh" xmlns:th="http://www.thymeleaf.org">
 
-<head th:replace="fragments :: head('上传中心 - AI Study')"></head>
+<head th:replace="fragments :: head('上传中心 - 哈尔滨信息工程学院学习平台')"></head>
 
 <body class="bg-light">
 
@@ -21,7 +21,8 @@
                                 <label class="form-label fw-bold">选择处理方式</label>
                                 <div class="row g-2">
                                     <div class="col-6">
-                                        <input type="radio" class="btn-check" name="mode" id="modeNote" value="note" checked>
+                                        <input type="radio" class="btn-check" name="mode" id="modeNote" value="note"
+                                            checked>
                                         <label class="btn btn-outline-primary w-100 h-100 py-3" for="modeNote">
                                             <i class="fas fa-file-alt fa-2x mb-2"></i><br>
                                             生成智能笔记
@@ -40,7 +41,8 @@
                             <!-- Title Input -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">文档标题</label>
-                                <input type="text" name="title" id="titleInput" class="form-control" placeholder="请输入标题（可选，默认使用文件名）">
+                                <input type="text" name="title" id="titleInput" class="form-control"
+                                    placeholder="请输入标题（可选，默认使用文件名）">
                             </div>
 
                             <!-- File Input -->
@@ -80,7 +82,7 @@
 
     <script>
         // Auto-fill title from filename
-        document.getElementById('fileInput').addEventListener('change', function(e) {
+        document.getElementById('fileInput').addEventListener('change', function (e) {
             const file = e.target.files[0];
             const titleInput = document.getElementById('titleInput');
             if (file && !titleInput.value) {
@@ -93,7 +95,7 @@
         // Update UI based on mode
         const modeRadios = document.querySelectorAll('input[name="mode"]');
         modeRadios.forEach(radio => {
-            radio.addEventListener('change', function() {
+            radio.addEventListener('change', function () {
                 const btn = document.getElementById('submitBtn');
                 if (this.value === 'note') {
                     btn.className = 'btn btn-primary btn-lg';
@@ -112,7 +114,7 @@
             const mode = formData.get('mode');
             const progressArea = document.getElementById('progressArea');
             const submitBtn = this.querySelector('button[type="submit"]');
-            
+
             // API Endpoint selection
             const apiEndpoint = mode === 'note' ? 'api/notes/upload-doc' : 'api/material/upload';
 
@@ -212,13 +214,13 @@
             } finally {
                 // For graph mode continue upload, we handled it above. 
                 // For other cases or errors, reset UI.
-                if (!(mode === 'graph' && !document.querySelector('.swal2-shown'))) { 
-                   // If alert is shown, don't hide progress immediately? No, standard flow.
+                if (!(mode === 'graph' && !document.querySelector('.swal2-shown'))) {
+                    // If alert is shown, don't hide progress immediately? No, standard flow.
                 }
                 // Actually, if we are redirecting, it doesn't matter. 
                 // If we stay (error), we should reset.
-                 progressArea.classList.add('d-none');
-                 submitBtn.disabled = false;
+                progressArea.classList.add('d-none');
+                submitBtn.disabled = false;
             }
         });
     </script>
