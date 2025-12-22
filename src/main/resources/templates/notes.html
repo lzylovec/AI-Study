@@ -256,7 +256,8 @@
             btn.type = 'button';
             btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
             const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString() : '';
-            btn.innerHTML = `<span class="me-2 text-truncate">${createdAt || '未知时间'}</span><span class="badge bg-secondary">${v.opType || ''}</span>`;
+            const ver = (v.versionNumber !== undefined && v.versionNumber !== null) ? `V${v.versionNumber}` : '';
+            btn.innerHTML = `<span class="me-2 text-truncate">${createdAt || '未知时间'}</span><span class="badge bg-secondary">${ver}</span>`;
             btn.onclick = () => loadVersion(v.id, btn);
             list.appendChild(btn);
             if (idx === 0) {
@@ -290,7 +291,8 @@
           return;
         }
         const metaTime = v.createdAt ? new Date(v.createdAt).toLocaleString() : '';
-        document.getElementById('versionMeta').innerText = `${metaTime}  ${v.opType || ''}`;
+        const ver = (v.versionNumber !== undefined && v.versionNumber !== null) ? `V${v.versionNumber}` : '';
+        document.getElementById('versionMeta').innerText = `${metaTime}  ${ver}`;
         document.getElementById('versionText').innerText = v.text || '';
 
         marked.setOptions({ breaks: true, gfm: true });

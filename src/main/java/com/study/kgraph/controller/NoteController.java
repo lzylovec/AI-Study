@@ -50,17 +50,14 @@ public class NoteController {
     return userId != null && note != null && note.getUserId() != null && note.getUserId().equals(userId);
   }
 
-  private void saveVersion(Note note, String opType) {
+  private void saveVersion(Note note) {
     if (note == null)
       return;
     NoteVersion v = new NoteVersion();
     v.setNoteId(note.getId());
-    v.setUserId(note.getUserId());
     v.setTitle(note.getTitle());
     v.setText(note.getText());
     v.setSummary(note.getSummary());
-    v.setAudioPath(note.getAudioPath());
-    v.setOpType(opType);
     try {
       noteVersionMapper.insert(v);
     } catch (Exception ignored) {
@@ -96,7 +93,7 @@ public class NoteController {
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
       noteMapper.insert(n);
-      saveVersion(n, "CREATE");
+      saveVersion(n);
 
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
@@ -130,7 +127,7 @@ public class NoteController {
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
       noteMapper.insert(n);
-      saveVersion(n, "CREATE");
+      saveVersion(n);
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
       String msg = e.getMessage();
@@ -182,7 +179,7 @@ public class NoteController {
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(resultText); // 如果超时，这里是 null
     noteMapper.insert(n);
-    saveVersion(n, "CREATE");
+    saveVersion(n);
 
     // 5. 如果超时未完成，记录 Task 以便后续查询
     if (resultText == null) {
@@ -218,7 +215,7 @@ public class NoteController {
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(null);
     noteMapper.insert(n);
-    saveVersion(n, "CREATE");
+    saveVersion(n);
     NoteTask t = new NoteTask();
     t.setNoteId(n.getId());
     t.setTaskId(taskId);
@@ -239,7 +236,7 @@ public class NoteController {
       if (text != null) {
         Note before = noteMapper.findById(t.getNoteId());
         if (before != null && (before.getText() == null || !before.getText().equals(text))) {
-          saveVersion(before, "TRANSCRIBE");
+          saveVersion(before);
         }
         noteMapper.updateText(t.getNoteId(), text);
         noteTaskMapper.updateStatus(taskId, "SUCCESS");
@@ -298,7 +295,7 @@ public class NoteController {
               String realText = parsePlainText(r.resultText);
               if (realText != null) {
                 if (n.getText() == null || !n.getText().equals(realText)) {
-                  saveVersion(n, "TRANSCRIBE");
+                  saveVersion(n);
                 }
                 noteMapper.updateText(n.getId(), realText);
                 noteTaskMapper.updateStatus(t.getTaskId(), "SUCCESS");
@@ -307,7 +304,7 @@ public class NoteController {
             } else if ("FAILED".equals(r.status)) {
               String failMsg = "【转写失败】请重试";
               if (n.getText() == null || !n.getText().equals(failMsg)) {
-                saveVersion(n, "TRANSCRIBE");
+                saveVersion(n);
               }
               noteMapper.updateText(n.getId(), failMsg);
               noteTaskMapper.updateStatus(t.getTaskId(), "FAILED");
@@ -332,7 +329,7 @@ public class NoteController {
     Note note = noteMapper.findById(id);
     if (!canAccessNote(userId, note))
       return java.util.Collections.singletonMap("error", "无权限");
-    saveVersion(note, "UPDATE_TEXT");
+    saveVersion(note);
     noteMapper.updateText(id, text);
     return java.util.Collections.singletonMap("ok", true);
   }
@@ -345,7 +342,7 @@ public class NoteController {
     Note note = noteMapper.findById(id);
     if (!canAccessNote(userId, note))
       return java.util.Collections.singletonMap("error", "无权限");
-    saveVersion(note, "DELETE");
+    saveVersion(note);
     noteMapper.delete(id);
     return java.util.Collections.singletonMap("ok", true);
   }
@@ -375,7 +372,7 @@ public class NoteController {
       }
 
       String summary = aiSummaryService.summarize(note.getText());
-      saveVersion(note, "UPDATE_SUMMARY");
+      saveVersion(note);
       noteMapper.updateSummary(id, summary);
 
       return java.util.Collections.singletonMap("summary", summary);
@@ -412,7 +409,8 @@ public class NoteController {
     }
     if (v == null)
       return java.util.Collections.singletonMap("error", "版本不存在");
-    if (v.getUserId() == null || !v.getUserId().equals(userId))
+    Note note = noteMapper.findById(v.getNoteId());
+    if (!canAccessNote(userId, note))
       return java.util.Collections.singletonMap("error", "无权限");
     return v;
   }
@@ -430,13 +428,11 @@ public class NoteController {
     }
     if (v == null)
       return java.util.Collections.singletonMap("error", "版本不存在");
-    if (v.getUserId() == null || !v.getUserId().equals(userId))
-      return java.util.Collections.singletonMap("error", "无权限");
     Note note = noteMapper.findById(v.getNoteId());
     if (!canAccessNote(userId, note))
       return java.util.Collections.singletonMap("error", "无权限");
-    saveVersion(note, "RESTORE");
-    noteMapper.updateAll(note.getId(), v.getTitle(), v.getText(), v.getSummary(), v.getAudioPath());
+    saveVersion(note);
+    noteMapper.updateAll(note.getId(), v.getTitle(), v.getText(), v.getSummary(), note.getAudioPath());
     return java.util.Collections.singletonMap("ok", true);
   }
 
