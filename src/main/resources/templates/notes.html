@@ -63,6 +63,42 @@
     </div>
   </div>
 
+  <div class="modal fade" id="noteHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">历史版本</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-lg-4">
+              <div class="list-group" id="versionList"></div>
+            </div>
+            <div class="col-12 col-lg-8">
+              <div class="mb-3">
+                <div class="text-muted small mb-2" id="versionMeta"></div>
+                <div class="border rounded p-3 bg-light" style="white-space: pre-wrap; min-height: 180px;"
+                  id="versionText"></div>
+              </div>
+              <div>
+                <div class="text-muted fw-bold mb-2">AI 总结</div>
+                <div class="border rounded p-3 bg-light markdown-body" style="white-space: normal; min-height: 120px;"
+                  id="versionSummary"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+          <button type="button" class="btn btn-primary" id="restoreBtn" onclick="restoreSelectedVersion()" disabled>
+            <i class="fas fa-rotate-left me-1"></i> 恢复此版本
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div th:replace="fragments :: loading"></div>
   <div th:replace="fragments :: scripts"></div>
 
@@ -111,6 +147,9 @@
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                     <div>
+                                        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openHistory(${n.id})" title="查看历史版本">
+                                            <i class="fas fa-clock-rotate-left me-1"></i> 历史
+                                        </button>
                                         <button class="btn btn-sm btn-outline-secondary me-1" onclick="viewNote(${n.id})" title="查看详情">
                                             <i class="fas fa-eye me-1"></i> 详情
                                         </button>
@@ -186,6 +225,107 @@
 
       const modal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
       modal.show();
+    }
+
+    let historyNoteId = null;
+    let selectedVersionId = null;
+
+    async function openHistory(noteId) {
+      historyNoteId = noteId;
+      selectedVersionId = null;
+      document.getElementById('versionList').innerHTML = '';
+      document.getElementById('versionMeta').innerText = '';
+      document.getElementById('versionText').innerText = '';
+      document.getElementById('versionSummary').innerHTML = '';
+      document.getElementById('restoreBtn').disabled = true;
+
+      try {
+        const r = await fetch(`api/notes/versions?noteId=${noteId}`);
+        const data = await r.json();
+        if (data && data.error) {
+          showToast('error', data.error);
+          return;
+        }
+
+        const list = document.getElementById('versionList');
+        if (!data || data.length === 0) {
+          list.innerHTML = '<div class="text-muted p-3">暂无历史版本</div>';
+        } else {
+          data.forEach((v, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+            const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString() : '';
+            btn.innerHTML = `<span class="me-2 text-truncate">${createdAt || '未知时间'}</span><span class="badge bg-secondary">${v.opType || ''}</span>`;
+            btn.onclick = () => loadVersion(v.id, btn);
+            list.appendChild(btn);
+            if (idx === 0) {
+              loadVersion(v.id, btn);
+            }
+          });
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('noteHistoryModal'));
+        modal.show();
+      } catch (e) {
+        showToast('error', '加载历史失败');
+      }
+    }
+
+    async function loadVersion(versionId, btnEl) {
+      selectedVersionId = versionId;
+      document.getElementById('restoreBtn').disabled = false;
+
+      const list = document.getElementById('versionList');
+      Array.from(list.children).forEach(el => {
+        if (el.classList) el.classList.remove('active');
+      });
+      if (btnEl && btnEl.classList) btnEl.classList.add('active');
+
+      try {
+        const r = await fetch(`api/notes/version?id=${versionId}`);
+        const v = await r.json();
+        if (v && v.error) {
+          showToast('error', v.error);
+          return;
+        }
+        const metaTime = v.createdAt ? new Date(v.createdAt).toLocaleString() : '';
+        document.getElementById('versionMeta').innerText = `${metaTime}  ${v.opType || ''}`;
+        document.getElementById('versionText').innerText = v.text || '';
+
+        marked.setOptions({ breaks: true, gfm: true });
+        document.getElementById('versionSummary').innerHTML = v.summary ? marked.parse(v.summary) : '';
+      } catch (e) {
+        showToast('error', '加载版本内容失败');
+      }
+    }
+
+    async function restoreSelectedVersion() {
+      if (!selectedVersionId) return;
+      const result = await Swal.fire({
+        title: '确认恢复?',
+        text: '当前内容将被覆盖，并会自动记录一条恢复前版本。',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '恢复',
+        cancelButtonText: '取消'
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        const fd = new FormData();
+        fd.append('versionId', selectedVersionId);
+        const r = await fetch('api/notes/restore', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (data && data.error) {
+          showToast('error', data.error);
+          return;
+        }
+        showToast('success', '已恢复');
+        load();
+      } catch (e) {
+        showToast('error', '恢复失败');
+      }
     }
 
     async function generateSummary(id) {

@@ -46,3 +46,16 @@ CREATE TABLE IF NOT EXISTS note_tasks (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_task (task_id)
 );
+
+CREATE TABLE IF NOT EXISTS note_versions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  note_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  text MEDIUMTEXT,
+  summary MEDIUMTEXT,
+  audio_path VARCHAR(512),
+  op_type VARCHAR(32) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_note_versions_note_created (note_id, created_at)
+);

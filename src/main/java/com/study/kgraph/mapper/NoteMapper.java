@@ -19,5 +19,11 @@ public interface NoteMapper {
 
     void updateSummary(@Param("id") Long id, @Param("summary") String summary);
 
+    void updateAll(@Param("id") Long id,
+            @Param("title") String title,
+            @Param("text") String text,
+            @Param("summary") String summary,
+            @Param("audioPath") String audioPath);
+
     void delete(@Param("id") Long id);
 }

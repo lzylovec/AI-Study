@@ -1,7 +1,9 @@
 package com.study.kgraph.controller;
 
 import com.study.kgraph.entity.Note;
+import com.study.kgraph.entity.NoteVersion;
 import com.study.kgraph.mapper.NoteMapper;
+import com.study.kgraph.mapper.NoteVersionMapper;
 import com.study.kgraph.service.SpeechService;
 import com.study.kgraph.service.FileTransServiceAliyun;
 import com.study.kgraph.service.OssService;
@@ -21,6 +23,8 @@ public class NoteController {
   @Autowired
   private NoteMapper noteMapper;
   @Autowired
+  private NoteVersionMapper noteVersionMapper;
+  @Autowired
   private SpeechService speechService;
   @Autowired
   private FileTransServiceAliyun fileTransService;
@@ -38,12 +42,37 @@ public class NoteController {
   @Value("${upload.root}")
   private String uploadRoot;
 
+  private Long requireUserId(HttpSession session) {
+    return (Long) session.getAttribute("userId");
+  }
+
+  private boolean canAccessNote(Long userId, Note note) {
+    return userId != null && note != null && note.getUserId() != null && note.getUserId().equals(userId);
+  }
+
+  private void saveVersion(Note note, String opType) {
+    if (note == null)
+      return;
+    NoteVersion v = new NoteVersion();
+    v.setNoteId(note.getId());
+    v.setUserId(note.getUserId());
+    v.setTitle(note.getTitle());
+    v.setText(note.getText());
+    v.setSummary(note.getSummary());
+    v.setAudioPath(note.getAudioPath());
+    v.setOpType(opType);
+    try {
+      noteVersionMapper.insert(v);
+    } catch (Exception ignored) {
+    }
+  }
+
   @PostMapping("/upload-doc")
   public Object uploadDoc(@RequestParam("file") MultipartFile file,
       @RequestParam(value = "title", required = false) String title,
       HttpSession session) {
     try {
-      Long userId = (Long) session.getAttribute("userId");
+      Long userId = requireUserId(session);
       if (userId == null)
         return java.util.Collections.singletonMap("error", "未登录");
 
@@ -67,6 +96,7 @@ public class NoteController {
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
       noteMapper.insert(n);
+      saveVersion(n, "CREATE");
 
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
@@ -79,7 +109,7 @@ public class NoteController {
   public Object uploadAudio(@RequestParam("file") MultipartFile file, @RequestParam("title") String title,
       HttpSession session) {
     try {
-      Long userId = (Long) session.getAttribute("userId");
+      Long userId = requireUserId(session);
       if (userId == null)
         return java.util.Collections.singletonMap("error", "未登录");
       File dir = new File(uploadRoot, "audio");
@@ -100,6 +130,7 @@ public class NoteController {
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
       noteMapper.insert(n);
+      saveVersion(n, "CREATE");
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
       String msg = e.getMessage();
@@ -151,6 +182,7 @@ public class NoteController {
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(resultText); // 如果超时，这里是 null
     noteMapper.insert(n);
+    saveVersion(n, "CREATE");
 
     // 5. 如果超时未完成，记录 Task 以便后续查询
     if (resultText == null) {
@@ -167,7 +199,7 @@ public class NoteController {
   @PostMapping("/upload-long-audio")
   public Object uploadLongAudio(@RequestParam("file") MultipartFile file, @RequestParam("title") String title,
       HttpSession session) throws Exception {
-    Long userId = (Long) session.getAttribute("userId");
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.singletonMap("error", "未登录");
     java.io.File dir = new java.io.File(uploadRoot, "audio");
@@ -186,6 +218,7 @@ public class NoteController {
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(null);
     noteMapper.insert(n);
+    saveVersion(n, "CREATE");
     NoteTask t = new NoteTask();
     t.setNoteId(n.getId());
     t.setTaskId(taskId);
@@ -204,6 +237,10 @@ public class NoteController {
     if (r.status != null && r.status.equals("SUCCESS") && t != null) {
       String text = parsePlainText(r.resultText);
       if (text != null) {
+        Note before = noteMapper.findById(t.getNoteId());
+        if (before != null && (before.getText() == null || !before.getText().equals(text))) {
+          saveVersion(before, "TRANSCRIBE");
+        }
         noteMapper.updateText(t.getNoteId(), text);
         noteTaskMapper.updateStatus(taskId, "SUCCESS");
       }
@@ -244,7 +281,7 @@ public class NoteController {
 
   @GetMapping("/list")
   public List<Note> list(HttpSession session) {
-    Long userId = (Long) session.getAttribute("userId");
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.emptyList();
 
@@ -260,12 +297,18 @@ public class NoteController {
             if ("SUCCESS".equals(r.status)) {
               String realText = parsePlainText(r.resultText);
               if (realText != null) {
+                if (n.getText() == null || !n.getText().equals(realText)) {
+                  saveVersion(n, "TRANSCRIBE");
+                }
                 noteMapper.updateText(n.getId(), realText);
                 noteTaskMapper.updateStatus(t.getTaskId(), "SUCCESS");
                 n.setText(realText); // 更新内存中的对象，以便直接返回最新结果
               }
             } else if ("FAILED".equals(r.status)) {
               String failMsg = "【转写失败】请重试";
+              if (n.getText() == null || !n.getText().equals(failMsg)) {
+                saveVersion(n, "TRANSCRIBE");
+              }
               noteMapper.updateText(n.getId(), failMsg);
               noteTaskMapper.updateStatus(t.getTaskId(), "FAILED");
               n.setText(failMsg);
@@ -282,43 +325,119 @@ public class NoteController {
   }
 
   @PostMapping("/update")
-  public Object update(@RequestParam Long id, @RequestParam String text) {
+  public Object update(@RequestParam Long id, @RequestParam String text, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(id);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "UPDATE_TEXT");
     noteMapper.updateText(id, text);
     return java.util.Collections.singletonMap("ok", true);
   }
 
   @PostMapping("/delete")
-  public Object delete(@RequestParam Long id) {
+  public Object delete(@RequestParam Long id, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(id);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "DELETE");
     noteMapper.delete(id);
     return java.util.Collections.singletonMap("ok", true);
   }
 
   @GetMapping("/search")
   public Object search(@RequestParam String q, HttpSession session) {
-    Long userId = (Long) session.getAttribute("userId");
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.emptyList();
     return noteMapper.search(userId, q);
   }
 
   @PostMapping("/summarize")
-  public Object summarize(@RequestParam Long id) {
+  public Object summarize(@RequestParam Long id, HttpSession session) {
     try {
+      Long userId = requireUserId(session);
+      if (userId == null)
+        return java.util.Collections.singletonMap("error", "未登录");
       Note note = noteMapper.findById(id);
       if (note == null) {
         return java.util.Collections.singletonMap("error", "笔记不存在");
       }
+      if (!canAccessNote(userId, note))
+        return java.util.Collections.singletonMap("error", "无权限");
       if (note.getText() == null || note.getText().trim().isEmpty()) {
         return java.util.Collections.singletonMap("error", "笔记内容为空，无法生成总结");
       }
 
       String summary = aiSummaryService.summarize(note.getText());
+      saveVersion(note, "UPDATE_SUMMARY");
       noteMapper.updateSummary(id, summary);
 
       return java.util.Collections.singletonMap("summary", summary);
     } catch (Exception e) {
       return java.util.Collections.singletonMap("error", "总结生成失败: " + e.getMessage());
     }
+  }
+
+  @GetMapping("/versions")
+  public Object versions(@RequestParam Long noteId, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(noteId);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    try {
+      return noteVersionMapper.findMetaByNoteId(noteId);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "加载历史失败，请先执行数据库升级脚本");
+    }
+  }
+
+  @GetMapping("/version")
+  public Object version(@RequestParam Long id, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    NoteVersion v;
+    try {
+      v = noteVersionMapper.findById(id);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "加载版本失败，请先执行数据库升级脚本");
+    }
+    if (v == null)
+      return java.util.Collections.singletonMap("error", "版本不存在");
+    if (v.getUserId() == null || !v.getUserId().equals(userId))
+      return java.util.Collections.singletonMap("error", "无权限");
+    return v;
+  }
+
+  @PostMapping("/restore")
+  public Object restore(@RequestParam Long versionId, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    NoteVersion v;
+    try {
+      v = noteVersionMapper.findById(versionId);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "恢复失败，请先执行数据库升级脚本");
+    }
+    if (v == null)
+      return java.util.Collections.singletonMap("error", "版本不存在");
+    if (v.getUserId() == null || !v.getUserId().equals(userId))
+      return java.util.Collections.singletonMap("error", "无权限");
+    Note note = noteMapper.findById(v.getNoteId());
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "RESTORE");
+    noteMapper.updateAll(note.getId(), v.getTitle(), v.getText(), v.getSummary(), v.getAudioPath());
+    return java.util.Collections.singletonMap("ok", true);
   }
 
   @GetMapping("/export/pdf")

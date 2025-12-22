@@ -65,7 +65,7 @@ async function load() {
 
         node.append('circle')
             .attr('r', d => 5 + Math.sqrt(d.score || 1) * 3) // Dynamic radius
-            .attr('fill', d => '#6366f1') // Indigo-500
+            .attr('fill', d => '#004098') // Brand Blue
             .attr('stroke', '#fff')
             .attr('stroke-width', 2)
             .attr('class', 'node-circle')
@@ -118,19 +118,19 @@ function highlightNode(selectedNode, nodes, links) {
     nodes.filter(d => neighbors.has(d.id))
         .style('opacity', 1)
         .select('circle')
-        .attr('fill', d => d.id === selectedNode.id ? '#ef4444' : '#6366f1')
+        .attr('fill', d => d.id === selectedNode.id ? '#f59e0b' : '#004098')
         .attr('r', d => (5 + Math.sqrt(d.score || 1) * 3) * (d.id === selectedNode.id ? 1.2 : 1));
 
     links.filter(d => d.source.id === selectedNode.id || d.target.id === selectedNode.id)
         .style('opacity', 0.8)
-        .attr('stroke', '#6366f1')
+        .attr('stroke', '#004098')
         .attr('stroke-width', 3);
 }
 
 function resetHighlight(nodes, links) {
     nodes.style('opacity', 1)
         .select('circle')
-        .attr('fill', '#6366f1')
+        .attr('fill', '#004098')
         .attr('r', d => 5 + Math.sqrt(d.score || 1) * 3);
 
     links.style('opacity', 0.6)

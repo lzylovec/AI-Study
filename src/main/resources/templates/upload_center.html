@@ -54,7 +54,7 @@
                             </div>
 
                             <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-ai btn-lg" id="submitBtn">
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
                                     <i class="fas fa-cloud-upload-alt me-2"></i>开始上传处理
                                 </button>
                             </div>
@@ -98,7 +98,7 @@
             radio.addEventListener('change', function () {
                 const btn = document.getElementById('submitBtn');
                 if (this.value === 'note') {
-                    btn.className = 'btn btn-ai btn-lg';
+                    btn.className = 'btn btn-primary btn-lg';
                     btn.innerHTML = '<i class="fas fa-magic me-2"></i>上传并生成笔记';
                 } else {
                     btn.className = 'btn btn-secondary btn-lg';

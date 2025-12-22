@@ -32,6 +32,11 @@
   <update id="updateSummary">
     UPDATE notes SET summary = #{summary} WHERE id = #{id}
   </update>
+  <update id="updateAll">
+    UPDATE notes
+    SET title = #{title}, text = #{text}, summary = #{summary}, audio_path = #{audioPath}
+    WHERE id = #{id}
+  </update>
   <delete id="delete">
     DELETE FROM notes WHERE id = #{id}
   </delete>
