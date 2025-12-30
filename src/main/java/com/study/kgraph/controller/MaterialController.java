@@ -21,7 +21,7 @@ public class MaterialController {
   @Value("${upload.root}")
   private String uploadRoot;
 
-  @PostMapping("/upload")
+  @PostMapping("/up load")
   public Object upload(@RequestParam("file") MultipartFile file, @RequestParam("title") String title,
       HttpSession session) {
     try {

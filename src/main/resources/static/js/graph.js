@@ -1,3 +1,7 @@
+let __graphColor = null;
+let __activeRelationKey = null;
+const __themeColor = '#0d6efd';
+
 async function load() {
     try {
         const r = await fetch('api/graph/build');
@@ -32,8 +36,11 @@ async function load() {
 
         const g = svg.append("g");
 
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+        __graphColor = color;
+
         const simulation = d3.forceSimulation(data.nodes)
-            .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+            .force('link', d3.forceLink(data.links).id(d => d.id).distance(150))
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(width / 2, height / 2))
             .force('collide', d3.forceCollide(30));
@@ -42,9 +49,23 @@ async function load() {
             .selectAll('line')
             .data(data.links)
             .enter().append('line')
-            .attr('stroke', '#cbd5e1')
+            .attr('stroke', d => d.relation ? color(d.relation) : '#cbd5e1')
             .attr('stroke-width', 2)
             .attr('stroke-opacity', 0.6);
+
+        link.append('title').text(d => d.relation || '');
+
+        const linkLabel = g.append('g')
+            .selectAll('text')
+            .data(data.links)
+            .enter().append('text')
+            .text(d => d.relation || '')
+            .style('font-size', '10px')
+            .style('fill', '#666')
+            .style('background', 'white')
+            .attr('text-anchor', 'middle')
+            .style('opacity', 0)
+            .style('pointer-events', 'none');
 
         const node = g.append('g')
             .selectAll('g')
@@ -53,19 +74,27 @@ async function load() {
             .call(drag(simulation))
             .on('click', (event, d) => {
                 showSidebar(d);
-                highlightNode(d, node, link);
+                __activeRelationKey = null;
+                highlightNode(d, node, link, linkLabel);
                 event.stopPropagation();
             });
+
+        link.on('click', (event, d) => {
+            __activeRelationKey = `${d.source.id}|${d.target.id}`;
+            highlightLink(d, node, link, linkLabel);
+            event.stopPropagation();
+        });
 
         // Reset highlight on background click
         svg.on('click', () => {
             closeSidebar();
-            resetHighlight(node, link);
+            __activeRelationKey = null;
+            resetHighlight(node, link, linkLabel);
         });
 
         node.append('circle')
             .attr('r', d => 5 + Math.sqrt(d.score || 1) * 3) // Dynamic radius
-            .attr('fill', d => '#004098') // Brand Blue
+            .attr('fill', d => color(d.name)) // Distinct color per node
             .attr('stroke', '#fff')
             .attr('stroke-width', 2)
             .attr('class', 'node-circle')
@@ -92,6 +121,10 @@ async function load() {
                 .attr('x2', d => d.target.x)
                 .attr('y2', d => d.target.y);
 
+            linkLabel
+                .attr('x', d => (d.source.x + d.target.x) / 2)
+                .attr('y', d => (d.source.y + d.target.y) / 2);
+
             node
                 .attr('transform', d => `translate(${d.x},${d.y})`);
         });
@@ -101,7 +134,7 @@ async function load() {
     }
 }
 
-function highlightNode(selectedNode, nodes, links) {
+function highlightNode(selectedNode, nodes, links, linkLabels) {
     // Find neighbors
     const neighbors = new Set();
     neighbors.add(selectedNode.id);
@@ -113,29 +146,74 @@ function highlightNode(selectedNode, nodes, links) {
     // Dim all
     nodes.style('opacity', 0.2);
     links.style('opacity', 0.1);
+    if (linkLabels) linkLabels.style('opacity', 0);
+    nodes.select('circle')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
 
     // Highlight selected and neighbors
     nodes.filter(d => neighbors.has(d.id))
         .style('opacity', 1)
         .select('circle')
-        .attr('fill', d => d.id === selectedNode.id ? '#f59e0b' : '#004098')
+        .attr('stroke', __themeColor)
+        .attr('stroke-width', d => d.id === selectedNode.id ? 5 : 4)
         .attr('r', d => (5 + Math.sqrt(d.score || 1) * 3) * (d.id === selectedNode.id ? 1.2 : 1));
 
     links.filter(d => d.source.id === selectedNode.id || d.target.id === selectedNode.id)
         .style('opacity', 0.8)
-        .attr('stroke', '#004098')
+        .attr('stroke', __themeColor)
         .attr('stroke-width', 3);
+
+    if (linkLabels) {
+        linkLabels
+            .filter(d => d.source.id === selectedNode.id || d.target.id === selectedNode.id)
+            .style('opacity', d => d.relation ? 1 : 0);
+    }
 }
 
-function resetHighlight(nodes, links) {
+function highlightLink(selectedLink, nodes, links, linkLabels) {
+    nodes.style('opacity', 0.2);
+    links.style('opacity', 0.1);
+    if (linkLabels) linkLabels.style('opacity', 0);
+    nodes.select('circle')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+
+    const selectedA = selectedLink.source.id;
+    const selectedB = selectedLink.target.id;
+
+    nodes.filter(d => d.id === selectedA || d.id === selectedB)
+        .style('opacity', 1)
+        .select('circle')
+        .attr('stroke', __themeColor)
+        .attr('stroke-width', 5)
+        .attr('r', d => (5 + Math.sqrt(d.score || 1) * 3) * 1.1);
+
+    links.filter(d => (d.source.id === selectedA && d.target.id === selectedB) || (d.source.id === selectedB && d.target.id === selectedA))
+        .style('opacity', 0.9)
+        .attr('stroke', __themeColor)
+        .attr('stroke-width', 3);
+
+    if (linkLabels) {
+        linkLabels
+            .filter(d => (d.source.id === selectedA && d.target.id === selectedB) || (d.source.id === selectedB && d.target.id === selectedA))
+            .style('opacity', d => d.relation ? 1 : 0);
+    }
+}
+
+function resetHighlight(nodes, links, linkLabels) {
     nodes.style('opacity', 1)
         .select('circle')
-        .attr('fill', '#004098')
+        .attr('fill', d => __graphColor ? __graphColor(d.name) : '#004098')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2)
         .attr('r', d => 5 + Math.sqrt(d.score || 1) * 3);
 
     links.style('opacity', 0.6)
-        .attr('stroke', '#cbd5e1')
+        .attr('stroke', d => (__graphColor && d.relation) ? __graphColor(d.relation) : '#cbd5e1')
         .attr('stroke-width', 2);
+
+    if (linkLabels) linkLabels.style('opacity', 0);
 }
 
 async function showSidebar(node) {

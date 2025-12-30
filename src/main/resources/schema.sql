@@ -50,10 +50,13 @@ CREATE TABLE IF NOT EXISTS note_tasks (
 CREATE TABLE IF NOT EXISTS note_versions (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   note_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
   version_number INT NOT NULL,
   title VARCHAR(255) NOT NULL,
   text MEDIUMTEXT,
   summary TEXT,
+  audio_path VARCHAR(512),
+  op_type VARCHAR(32),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_task (note_id, version_number),
