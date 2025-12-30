@@ -5,7 +5,7 @@
 
 <body class="bg-light">
 
-    <div th:replace="fragments :: nav(active='dashboard')"></div>
+    <div th:replace="fragments :: nav(active='upload-center')"></div>
 
     <div class="container fade-in">
         <div class="row justify-content-center">
@@ -21,6 +21,20 @@
                                 <input type="file" name="file" class="form-control form-control-lg"
                                     accept=".doc,.docx,.pdf,.txt,.ppt,.pptx" required>
                                 <div class="form-text">文件将被解析为文本并保存到“我的笔记”中。</div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">笔记分类</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="categorySelect"
+                                        onchange="checkCategoryCustom(this)">
+                                        <option value="" selected>默认分类</option>
+                                    </select>
+                                    <input type="text" name="category" id="categoryInput" class="form-control"
+                                        placeholder="请输入新分类名称" style="display:none;">
+                                    <button class="btn btn-outline-secondary" type="button" id="cancelCustomBtn"
+                                        style="display:none;" onclick="cancelCustomCategory()"><i
+                                            class="fas fa-times"></i></button>
+                                </div>
                             </div>
 
                             <div class="d-grid gap-2">
@@ -131,6 +145,59 @@
                 submitBtn.disabled = false;
             }
         });
+
+        async function loadCategories() {
+            try {
+                const r = await fetch('api/notes/categories?_t=' + new Date().getTime());
+                const list = await r.json();
+                const sel = document.getElementById('categorySelect');
+                if (!sel) return;
+                sel.innerHTML = '<option value="" selected>默认分类</option>';
+                if (Array.isArray(list)) {
+                    list.forEach(c => {
+                        if (!c) return;
+                        const s = String(c).trim();
+                        if (!s) return;
+                        const o = document.createElement('option');
+                        o.value = s;
+                        o.innerText = s;
+                        sel.appendChild(o);
+                    });
+                }
+                const newOpt = document.createElement('option');
+                newOpt.value = '__NEW__';
+                newOpt.innerText = '+ 新建分类...';
+                sel.appendChild(newOpt);
+            } catch (e) {
+            }
+        }
+
+        function checkCategoryCustom(sel) {
+            const input = document.getElementById('categoryInput');
+            const btn = document.getElementById('cancelCustomBtn');
+            if (sel.value === '__NEW__') {
+                sel.style.display = 'none';
+                input.style.display = 'block';
+                input.value = '';
+                input.focus();
+                btn.style.display = 'block';
+            } else {
+                input.value = sel.value;
+            }
+        }
+
+        function cancelCustomCategory() {
+            const sel = document.getElementById('categorySelect');
+            const input = document.getElementById('categoryInput');
+            const btn = document.getElementById('cancelCustomBtn');
+            sel.value = "";
+            sel.style.display = 'block';
+            input.style.display = 'none';
+            input.value = "";
+            btn.style.display = 'none';
+        }
+
+        loadCategories();
     </script>
 
 </body>

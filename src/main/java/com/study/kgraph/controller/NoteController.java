@@ -1,7 +1,10 @@
 package com.study.kgraph.controller;
 
 import com.study.kgraph.entity.Note;
+import com.study.kgraph.entity.NoteVersion;
 import com.study.kgraph.mapper.NoteMapper;
+import com.study.kgraph.mapper.NoteVersionMapper;
+import com.study.kgraph.service.GraphService;
 import com.study.kgraph.service.SpeechService;
 import com.study.kgraph.service.FileTransServiceAliyun;
 import com.study.kgraph.service.OssService;
@@ -21,6 +24,8 @@ public class NoteController {
   @Autowired
   private NoteMapper noteMapper;
   @Autowired
+  private NoteVersionMapper noteVersionMapper;
+  @Autowired
   private SpeechService speechService;
   @Autowired
   private FileTransServiceAliyun fileTransService;
@@ -34,16 +39,55 @@ public class NoteController {
   private com.study.kgraph.service.TikaService tikaService;
   @Autowired
   private com.study.kgraph.service.ExportService exportService;
+  @Autowired
+  private GraphService graphService;
 
   @Value("${upload.root}")
   private String uploadRoot;
 
+  private Long requireUserId(HttpSession session) {
+    return (Long) session.getAttribute("userId");
+  }
+
+  private String normalizeNoteCategory(String category) {
+    if (category == null)
+      return "";
+    String c = category.trim();
+    if (c.isEmpty() || GraphService.GRAPH_CATEGORY_ALL.equals(c) || GraphService.GRAPH_CATEGORY_UNCATEGORIZED.equals(c))
+      return "";
+    if (c.length() > 64)
+      c = c.substring(0, 64);
+    return c;
+  }
+
+  private boolean canAccessNote(Long userId, Note note) {
+    return userId != null && note != null && note.getUserId() != null && note.getUserId().equals(userId);
+  }
+
+  private void saveVersion(Note note, String opType) {
+    if (note == null)
+      return;
+    NoteVersion v = new NoteVersion();
+    v.setNoteId(note.getId());
+    v.setUserId(note.getUserId());
+    v.setTitle(note.getTitle());
+    v.setText(note.getText());
+    v.setSummary(note.getSummary());
+    v.setAudioPath(note.getAudioPath());
+    v.setOpType(opType);
+    try {
+      noteVersionMapper.insert(v);
+    } catch (Exception ignored) {
+    }
+  }
+
   @PostMapping("/upload-doc")
   public Object uploadDoc(@RequestParam("file") MultipartFile file,
       @RequestParam(value = "title", required = false) String title,
+      @RequestParam(value = "category", required = false) String category,
       HttpSession session) {
     try {
-      Long userId = (Long) session.getAttribute("userId");
+      Long userId = requireUserId(session);
       if (userId == null)
         return java.util.Collections.singletonMap("error", "未登录");
 
@@ -66,7 +110,10 @@ public class NoteController {
       n.setTitle((title != null && !title.isEmpty()) ? title : file.getOriginalFilename());
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
+      n.setCategory(normalizeNoteCategory(category));
       noteMapper.insert(n);
+      saveVersion(n, "CREATE");
+      graphService.clearGraphsForNoteCategory(userId, n.getCategory());
 
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
@@ -77,9 +124,10 @@ public class NoteController {
 
   @PostMapping("/upload-audio")
   public Object uploadAudio(@RequestParam("file") MultipartFile file, @RequestParam("title") String title,
+      @RequestParam(value = "category", required = false) String category,
       HttpSession session) {
     try {
-      Long userId = (Long) session.getAttribute("userId");
+      Long userId = requireUserId(session);
       if (userId == null)
         return java.util.Collections.singletonMap("error", "未登录");
       File dir = new File(uploadRoot, "audio");
@@ -90,7 +138,7 @@ public class NoteController {
       // 检查是否为 MP3，如果是则走自动长语音流程
       String name = file.getOriginalFilename();
       if (name != null && name.toLowerCase().endsWith(".mp3")) {
-        return processMp3Automatically(file, title, userId, dest);
+        return processMp3Automatically(file, title, normalizeNoteCategory(category), userId, dest);
       }
 
       String text = speechService.transcribe(dest);
@@ -99,7 +147,10 @@ public class NoteController {
       n.setTitle(title);
       n.setText(text);
       n.setAudioPath(dest.getAbsolutePath());
+      n.setCategory(normalizeNoteCategory(category));
       noteMapper.insert(n);
+      saveVersion(n, "CREATE");
+      graphService.clearGraphsForNoteCategory(userId, n.getCategory());
       return java.util.Collections.singletonMap("id", n.getId());
     } catch (Exception e) {
       String msg = e.getMessage();
@@ -112,7 +163,8 @@ public class NoteController {
     }
   }
 
-  private Object processMp3Automatically(MultipartFile file, String title, Long userId, File dest) throws Exception {
+  private Object processMp3Automatically(MultipartFile file, String title, String category, Long userId, File dest)
+      throws Exception {
     // 1. 上传 OSS
     String fileUrl = ossService.uploadAndSign(dest, "audio/");
     if (fileUrl == null || fileUrl.isEmpty())
@@ -150,7 +202,10 @@ public class NoteController {
     n.setTitle(title);
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(resultText); // 如果超时，这里是 null
+    n.setCategory(normalizeNoteCategory(category));
     noteMapper.insert(n);
+    saveVersion(n, "CREATE");
+    graphService.clearGraphsForNoteCategory(userId, n.getCategory());
 
     // 5. 如果超时未完成，记录 Task 以便后续查询
     if (resultText == null) {
@@ -166,8 +221,9 @@ public class NoteController {
 
   @PostMapping("/upload-long-audio")
   public Object uploadLongAudio(@RequestParam("file") MultipartFile file, @RequestParam("title") String title,
+      @RequestParam(value = "category", required = false) String category,
       HttpSession session) throws Exception {
-    Long userId = (Long) session.getAttribute("userId");
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.singletonMap("error", "未登录");
     java.io.File dir = new java.io.File(uploadRoot, "audio");
@@ -185,7 +241,10 @@ public class NoteController {
     n.setTitle(title);
     n.setAudioPath(dest.getAbsolutePath());
     n.setText(null);
+    n.setCategory(normalizeNoteCategory(category));
     noteMapper.insert(n);
+    saveVersion(n, "CREATE");
+    graphService.clearGraphsForNoteCategory(userId, n.getCategory());
     NoteTask t = new NoteTask();
     t.setNoteId(n.getId());
     t.setTaskId(taskId);
@@ -204,8 +263,15 @@ public class NoteController {
     if (r.status != null && r.status.equals("SUCCESS") && t != null) {
       String text = parsePlainText(r.resultText);
       if (text != null) {
+        Note before = noteMapper.findById(t.getNoteId());
+        if (before != null && (before.getText() == null || !before.getText().equals(text))) {
+          saveVersion(before, "TRANSCRIBE");
+        }
         noteMapper.updateText(t.getNoteId(), text);
         noteTaskMapper.updateStatus(taskId, "SUCCESS");
+        if (before != null && before.getUserId() != null) {
+          graphService.clearGraphsForNoteCategory(before.getUserId(), before.getCategory());
+        }
       }
     } else if (t != null && r.status != null) {
       noteTaskMapper.updateStatus(taskId, r.status);
@@ -244,7 +310,7 @@ public class NoteController {
 
   @GetMapping("/list")
   public List<Note> list(HttpSession session) {
-    Long userId = (Long) session.getAttribute("userId");
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.emptyList();
 
@@ -260,15 +326,23 @@ public class NoteController {
             if ("SUCCESS".equals(r.status)) {
               String realText = parsePlainText(r.resultText);
               if (realText != null) {
+                if (n.getText() == null || !n.getText().equals(realText)) {
+                  saveVersion(n, "TRANSCRIBE");
+                }
                 noteMapper.updateText(n.getId(), realText);
                 noteTaskMapper.updateStatus(t.getTaskId(), "SUCCESS");
                 n.setText(realText); // 更新内存中的对象，以便直接返回最新结果
+                graphService.clearGraphsForNoteCategory(userId, n.getCategory());
               }
             } else if ("FAILED".equals(r.status)) {
               String failMsg = "【转写失败】请重试";
+              if (n.getText() == null || !n.getText().equals(failMsg)) {
+                saveVersion(n, "TRANSCRIBE");
+              }
               noteMapper.updateText(n.getId(), failMsg);
               noteTaskMapper.updateStatus(t.getTaskId(), "FAILED");
               n.setText(failMsg);
+              graphService.clearGraphsForNoteCategory(userId, n.getCategory());
             }
           } catch (Exception e) {
             // 忽略查询错误，避免阻塞列表加载
@@ -282,43 +356,135 @@ public class NoteController {
   }
 
   @PostMapping("/update")
-  public Object update(@RequestParam Long id, @RequestParam String text) {
+  public Object update(@RequestParam Long id, @RequestParam String text, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(id);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "UPDATE_TEXT");
     noteMapper.updateText(id, text);
+    graphService.clearGraphsForNoteCategory(userId, note.getCategory());
     return java.util.Collections.singletonMap("ok", true);
   }
 
   @PostMapping("/delete")
-  public Object delete(@RequestParam Long id) {
+  public Object delete(@RequestParam Long id, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(id);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "DELETE");
     noteMapper.delete(id);
+    graphService.clearGraphsForNoteCategory(userId, note.getCategory());
     return java.util.Collections.singletonMap("ok", true);
   }
 
   @GetMapping("/search")
-  public Object search(@RequestParam String q, HttpSession session) {
-    Long userId = (Long) session.getAttribute("userId");
+  public Object search(@RequestParam String q, @RequestParam(value = "category", required = false) String category,
+      HttpSession session) {
+    Long userId = requireUserId(session);
     if (userId == null)
       return java.util.Collections.emptyList();
-    return noteMapper.search(userId, q);
+    String cat = category == null ? null : category.trim();
+    if (cat != null && (cat.isEmpty() || GraphService.GRAPH_CATEGORY_ALL.equals(cat)))
+      cat = null;
+    return noteMapper.search(userId, q, cat);
+  }
+
+  @GetMapping("/categories")
+  public Object categories(HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.emptyList();
+    List<String> list = noteMapper.listCategories(userId);
+    return list == null ? java.util.Collections.emptyList() : list;
   }
 
   @PostMapping("/summarize")
-  public Object summarize(@RequestParam Long id) {
+  public Object summarize(@RequestParam Long id, HttpSession session) {
     try {
+      Long userId = requireUserId(session);
+      if (userId == null)
+        return java.util.Collections.singletonMap("error", "未登录");
       Note note = noteMapper.findById(id);
       if (note == null) {
         return java.util.Collections.singletonMap("error", "笔记不存在");
       }
+      if (!canAccessNote(userId, note))
+        return java.util.Collections.singletonMap("error", "无权限");
       if (note.getText() == null || note.getText().trim().isEmpty()) {
         return java.util.Collections.singletonMap("error", "笔记内容为空，无法生成总结");
       }
 
       String summary = aiSummaryService.summarize(note.getText());
+      saveVersion(note, "UPDATE_SUMMARY");
       noteMapper.updateSummary(id, summary);
 
       return java.util.Collections.singletonMap("summary", summary);
     } catch (Exception e) {
       return java.util.Collections.singletonMap("error", "总结生成失败: " + e.getMessage());
     }
+  }
+
+  @GetMapping("/versions")
+  public Object versions(@RequestParam Long noteId, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    Note note = noteMapper.findById(noteId);
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    try {
+      return noteVersionMapper.findMetaByNoteId(noteId);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "加载历史失败，请先执行数据库升级脚本");
+    }
+  }
+
+  @GetMapping("/version")
+  public Object version(@RequestParam Long id, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    NoteVersion v;
+    try {
+      v = noteVersionMapper.findById(id);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "加载版本失败，请先执行数据库升级脚本");
+    }
+    if (v == null)
+      return java.util.Collections.singletonMap("error", "版本不存在");
+    if (v.getUserId() == null || !v.getUserId().equals(userId))
+      return java.util.Collections.singletonMap("error", "无权限");
+    return v;
+  }
+
+  @PostMapping("/restore")
+  public Object restore(@RequestParam Long versionId, HttpSession session) {
+    Long userId = requireUserId(session);
+    if (userId == null)
+      return java.util.Collections.singletonMap("error", "未登录");
+    NoteVersion v;
+    try {
+      v = noteVersionMapper.findById(versionId);
+    } catch (Exception e) {
+      return java.util.Collections.singletonMap("error", "恢复失败，请先执行数据库升级脚本");
+    }
+    if (v == null)
+      return java.util.Collections.singletonMap("error", "版本不存在");
+    if (v.getUserId() == null || !v.getUserId().equals(userId))
+      return java.util.Collections.singletonMap("error", "无权限");
+    Note note = noteMapper.findById(v.getNoteId());
+    if (!canAccessNote(userId, note))
+      return java.util.Collections.singletonMap("error", "无权限");
+    saveVersion(note, "RESTORE");
+    noteMapper.updateAll(note.getId(), v.getTitle(), v.getText(), v.getSummary(), v.getAudioPath());
+    graphService.clearGraphsForNoteCategory(userId, note.getCategory());
+    return java.util.Collections.singletonMap("ok", true);
   }
 
   @GetMapping("/export/pdf")

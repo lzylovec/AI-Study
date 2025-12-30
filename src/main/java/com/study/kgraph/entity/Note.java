@@ -7,6 +7,7 @@ public class Note {
     private String text;
     private String audioPath;
     private String summary;
+    private String category;
     private java.sql.Timestamp createdAt;
     private java.sql.Timestamp updatedAt;
     public Long getId() { return id; }
@@ -21,6 +22,8 @@ public class Note {
     public void setAudioPath(String audioPath) { this.audioPath = audioPath; }
     public String getSummary() { return summary; }
     public void setSummary(String summary) { this.summary = summary; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
     public java.sql.Timestamp getCreatedAt() { return createdAt; }
     public void setCreatedAt(java.sql.Timestamp createdAt) { this.createdAt = createdAt; }
     public java.sql.Timestamp getUpdatedAt() { return updatedAt; }

@@ -5,7 +5,7 @@
 
 <body class="bg-light">
 
-  <div th:replace="fragments :: nav(active='dashboard')"></div>
+  <div th:replace="fragments :: nav(active='upload-audio-center')"></div>
 
   <div class="container fade-in">
     <div class="row justify-content-center">
@@ -21,6 +21,18 @@
               <div class="mb-3">
                 <label for="title" class="form-label fw-bold">标题</label>
                 <input type="text" class="form-control" id="title" placeholder="给笔记起个标题" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">笔记分类</label>
+                <div class="input-group">
+                  <select class="form-select" id="categorySelect" onchange="checkCategoryCustom(this)">
+                    <option value="" selected>默认分类</option>
+                  </select>
+                  <input type="text" name="category" id="categoryInput" class="form-control" placeholder="请输入新分类名称"
+                    style="display:none;">
+                  <button class="btn btn-outline-secondary" type="button" id="cancelCustomBtn" style="display:none;"
+                    onclick="cancelCustomCategory()"><i class="fas fa-times"></i></button>
+                </div>
               </div>
               <div class="mb-4">
                 <label for="file" class="form-label fw-bold">音频文件</label>
@@ -48,6 +60,10 @@
   <script th:inline="javascript">
     async function upload() {
       const title = document.getElementById('title').value;
+      let category = document.getElementById('categorySelect').value;
+      if (category === '__NEW__') {
+        category = document.getElementById('categoryInput').value;
+      }
       const fileInput = document.getElementById('file');
 
       if (!title || fileInput.files.length === 0) {
@@ -59,6 +75,7 @@
       const fd = new FormData();
       fd.append('title', title);
       fd.append('file', file);
+      fd.append('category', category || '');
 
       try {
         const r = await fetch('api/notes/upload-audio', {
@@ -89,6 +106,56 @@
         Swal.fire('错误', '网络错误', 'error');
       }
     }
+
+    function checkCategoryCustom(select) {
+      const input = document.getElementById('categoryInput');
+      const cancelBtn = document.getElementById('cancelCustomBtn');
+      if (select.value === '__NEW__') {
+        select.style.display = 'none';
+        input.style.display = 'block';
+        cancelBtn.style.display = 'block';
+        input.focus();
+      }
+    }
+
+    function cancelCustomCategory() {
+      const select = document.getElementById('categorySelect');
+      const input = document.getElementById('categoryInput');
+      const cancelBtn = document.getElementById('cancelCustomBtn');
+      select.value = '';
+      select.style.display = 'block';
+      input.style.display = 'none';
+      cancelBtn.style.display = 'none';
+      input.value = '';
+    }
+
+    async function loadCategories() {
+      try {
+        const r = await fetch('api/notes/categories?_t=' + new Date().getTime());
+        const list = await r.json();
+        const sel = document.getElementById('categorySelect');
+        if (!sel) return;
+        sel.innerHTML = '<option value="" selected>默认分类</option>';
+        if (Array.isArray(list)) {
+          list.forEach(c => {
+            if (!c) return;
+            const s = String(c).trim();
+            if (!s) return;
+            const o = document.createElement('option');
+            o.value = s;
+            o.innerText = s;
+            sel.appendChild(o);
+          });
+        }
+        const newOpt = document.createElement('option');
+        newOpt.value = '__NEW__';
+        newOpt.innerText = '+ 新建分类...';
+        sel.appendChild(newOpt);
+      } catch (e) {
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCategories);
   </script>
 </body>
 

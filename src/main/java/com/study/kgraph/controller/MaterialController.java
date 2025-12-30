@@ -2,6 +2,7 @@ package com.study.kgraph.controller;
 
 import com.study.kgraph.entity.Material;
 import com.study.kgraph.mapper.MaterialMapper;
+import com.study.kgraph.service.GraphService;
 import com.study.kgraph.service.TikaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +17,8 @@ import java.util.Collections;
 public class MaterialController {
   @Autowired
   private MaterialMapper materialMapper;
+  @Autowired
+  private GraphService graphService;
   @Autowired
   private TikaService tikaService;
   @Value("${upload.root}")
@@ -41,6 +44,7 @@ public class MaterialController {
       m.setFilePath(dest.getAbsolutePath());
       m.setExtractedText(text);
       materialMapper.insert(m);
+      graphService.clearGraph(userId, GraphService.GRAPH_CATEGORY_ALL);
       return Collections.singletonMap("id", m.getId());
     } catch (Exception e) {
       e.printStackTrace();

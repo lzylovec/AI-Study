@@ -20,6 +20,11 @@ public class PageController {
     return "notes";
   }
 
+  @GetMapping("/categories")
+  public String categories() {
+    return "categories";
+  }
+
   @GetMapping("/graph")
   public String graph() {
     return "graph";
