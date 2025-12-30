@@ -3,6 +3,7 @@ package com.study.kgraph.entity;
 public class Relation {
     private Long id;
     private Long userId;
+    private String category;
     private Long sourceId;
     private Long targetId;
     private String relationType;
@@ -11,6 +12,8 @@ public class Relation {
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
     public Long getSourceId() { return sourceId; }
     public void setSourceId(Long sourceId) { this.sourceId = sourceId; }
     public Long getTargetId() { return targetId; }

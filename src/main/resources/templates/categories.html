@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="fragments :: head('分类管理 - 哈尔滨信息工程学院学习平台')"></head>
+
+<body class="bg-light">
+
+    <div th:replace="fragments :: nav(active='categories')"></div>
+
+    <div class="container fade-in">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold text-dark mb-0">分类管理</h3>
+            <button onclick="showAddModal()" class="btn btn-primary-custom">
+                <i class="fas fa-plus me-1"></i> 新建分类
+            </button>
+        </div>
+
+        <div class="card card-custom">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4" style="width: 10%;">ID</th>
+                                <th style="width: 50%;">分类名称</th>
+                                <th style="width: 20%;">创建时间</th>
+                                <th class="text-end pe-4" style="width: 20%;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categoryList">
+                            <!-- Injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="empty-state" class="text-center py-5 d-none">
+            <div class="text-muted mb-3">
+                <i class="fas fa-tags fa-3x"></i>
+            </div>
+            <p class="text-muted">暂无分类，点击上方按钮创建</p>
+        </div>
+    </div>
+
+    <!-- Edit/Add Modal -->
+    <div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="modalTitle">新建分类</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="categoryId">
+                    <div class="mb-3">
+                        <label class="form-label">分类名称</label>
+                        <input type="text" class="form-control" id="categoryName" placeholder="输入分类名称">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCategory()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="fragments :: loading"></div>
+    <div th:replace="fragments :: scripts"></div>
+
+    <script th:inline="javascript">
+        let categories = [];
+        const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+
+        async function load() {
+            try {
+                const r = await fetch('api/categories');
+                const data = await r.json();
+                categories = data;
+                render();
+            } catch (e) {
+                console.error(e);
+                showToast('error', '加载失败');
+            }
+        }
+
+        function render() {
+            const tbody = document.getElementById('categoryList');
+            const empty = document.getElementById('empty-state');
+            tbody.innerHTML = '';
+
+            if (!categories || categories.length === 0) {
+                empty.classList.remove('d-none');
+                return;
+            }
+            empty.classList.add('d-none');
+
+            categories.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="ps-4 text-muted">#${c.id}</td>
+                    <td class="fw-bold text-primary">${c.name}</td>
+                    <td class="text-muted small">${new Date(c.createdAt).toLocaleDateString()}</td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-secondary me-2" onclick="showEditModal(${c.id})">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id})">
+                            <i class="fas fa-trash-alt"></i> 删除
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function showAddModal() {
+            document.getElementById('modalTitle').innerText = '新建分类';
+            document.getElementById('categoryId').value = '';
+            document.getElementById('categoryName').value = '';
+            modal.show();
+        }
+
+        function showEditModal(id) {
+            const c = categories.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('modalTitle').innerText = '编辑分类';
+            document.getElementById('categoryId').value = c.id;
+            document.getElementById('categoryName').value = c.name;
+            modal.show();
+        }
+
+        async function saveCategory() {
+            const id = document.getElementById('categoryId').value;
+            const name = document.getElementById('categoryName').value;
+            
+            if (!name || !name.trim()) {
+                showToast('warning', '请输入分类名称');
+                return;
+            }
+
+            try {
+                const fd = new FormData();
+                fd.append('name', name);
+                
+                let url = 'api/categories';
+                if (id) {
+                    url = 'api/categories/update';
+                    fd.append('id', id);
+                }
+
+                const r = await fetch(url, { method: 'POST', body: fd });
+                const res = await r.json();
+                
+                if (res.error) {
+                    showToast('error', res.error);
+                } else {
+                    showToast('success', '保存成功');
+                    modal.hide();
+                    load();
+                }
+            } catch (e) {
+                showToast('error', '操作失败');
+            }
+        }
+
+        async function deleteCategory(id) {
+            const result = await Swal.fire({
+                title: '确认删除?',
+                text: "删除分类后，该分类下的笔记将被移至“未分类”。",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '删除',
+                cancelButtonText: '取消'
+            });
+
+            if (result.isConfirmed) {
+                try {
+                    const fd = new FormData();
+                    fd.append('id', id);
+                    const r = await fetch('api/categories/delete', { method: 'POST', body: fd });
+                    const res = await r.json();
+                    
+                    if (res.error) {
+                        showToast('error', res.error);
+                    } else {
+                        showToast('success', '已删除');
+                        load();
+                    }
+                } catch (e) {
+                    showToast('error', '删除失败');
+                }
+            }
+        }
+
+        load();
+    </script>
+</body>
+</html>

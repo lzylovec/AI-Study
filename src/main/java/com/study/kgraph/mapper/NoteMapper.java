@@ -11,9 +11,15 @@ public interface NoteMapper {
 
     List<Note> findByUserId(@Param("userId") Long userId);
 
+    List<Note> findByUserIdAndCategory(@Param("userId") Long userId, @Param("category") String category);
+
+    List<Note> findByUserIdUncategorized(@Param("userId") Long userId);
+
     Note findById(@Param("id") Long id);
 
-    List<Note> search(@Param("userId") Long userId, @Param("keyword") String keyword);
+    List<Note> search(@Param("userId") Long userId, @Param("keyword") String keyword, @Param("category") String category);
+
+    List<String> listCategories(@Param("userId") Long userId);
 
     void updateText(@Param("id") Long id, @Param("text") String text);
 
@@ -26,4 +32,8 @@ public interface NoteMapper {
                    @Param("audioPath") String audioPath);
 
     void delete(@Param("id") Long id);
+
+    int updateCategory(@Param("userId") Long userId, @Param("oldName") String oldName, @Param("newName") String newName);
+
+    int removeCategory(@Param("userId") Long userId, @Param("name") String name);
 }

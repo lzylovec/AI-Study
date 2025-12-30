@@ -8,14 +8,21 @@
     <result property="text" column="text"/>
     <result property="audioPath" column="audio_path"/>
     <result property="summary" column="summary"/>
+    <result property="category" column="category"/>
     <result property="createdAt" column="created_at"/>
     <result property="updatedAt" column="updated_at"/>
   </resultMap>
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO notes(user_id, title, text, audio_path, summary) VALUES(#{userId}, #{title}, #{text}, #{audioPath}, #{summary})
+    INSERT INTO notes(user_id, title, text, audio_path, summary, category) VALUES(#{userId}, #{title}, #{text}, #{audioPath}, #{summary}, #{category})
   </insert>
   <select id="findByUserId" resultMap="NoteMap">
     SELECT * FROM notes WHERE user_id = #{userId} ORDER BY updated_at DESC
+  </select>
+  <select id="findByUserIdAndCategory" resultMap="NoteMap">
+    SELECT * FROM notes WHERE user_id = #{userId} AND category = #{category} ORDER BY updated_at DESC
+  </select>
+  <select id="findByUserIdUncategorized" resultMap="NoteMap">
+    SELECT * FROM notes WHERE user_id = #{userId} AND (category IS NULL OR category = '') ORDER BY updated_at DESC
   </select>
   <select id="findById" resultMap="NoteMap">
     SELECT * FROM notes WHERE id = #{id}
@@ -23,9 +30,26 @@
   <select id="search" resultMap="NoteMap">
     SELECT * FROM notes 
     WHERE user_id = #{userId} 
+    <choose>
+      <when test="category != null and category == '__UNCATEGORIZED__'">
+        AND (category IS NULL OR category = '')
+      </when>
+      <when test="category != null and category != ''">
+        AND category = #{category}
+      </when>
+    </choose>
     AND (title LIKE CONCAT('%', #{keyword}, '%') OR text LIKE CONCAT('%', #{keyword}, '%'))
     ORDER BY updated_at DESC
   </select>
+  <select id="listCategories" resultType="java.lang.String">
+    SELECT DISTINCT category FROM notes WHERE user_id = #{userId} AND category IS NOT NULL AND category != '' ORDER BY category ASC
+  </select>
+  <update id="updateCategory">
+    UPDATE notes SET category = #{newName} WHERE user_id = #{userId} AND category = #{oldName}
+  </update>
+  <update id="removeCategory">
+    UPDATE notes SET category = '' WHERE user_id = #{userId} AND category = #{name}
+  </update>
   <update id="updateText">
     UPDATE notes SET text = #{text} WHERE id = #{id}
   </update>

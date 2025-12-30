@@ -35,8 +35,25 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${active == 'upload-audio-center' ? 'active' : ''}"
+                            th:href="@{/upload-audio-center}">
+                            <i class="fas fa-microphone-alt me-1"></i> 语音转写中心
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${active == 'upload-center' ? 'active' : ''}"
+                            th:href="@{/upload-center}">
+                            <i class="fas fa-cloud-upload-alt me-1"></i> 资源上传中心
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${active == 'notes' ? 'active' : ''}" th:href="@{/notes}">
                             <i class="fas fa-book me-1"></i> 笔记
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${active == 'categories' ? 'active' : ''}" th:href="@{/categories}">
+                            <i class="fas fa-tags me-1"></i> 分类
                         </a>
                     </li>
                     <li class="nav-item">

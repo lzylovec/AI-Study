@@ -1,13 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.study.kgraph.mapper.ConceptMapper">
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO concepts(user_id, graph_category, name, score) VALUES(#{userId}, #{category}, #{name}, #{score})
+  </insert>
   <insert id="insertBatch">
-    INSERT INTO concepts(user_id, name, score)
+    INSERT INTO concepts(user_id, graph_category, name, score) VALUES
     <foreach collection="list" item="c" separator=",">
-      (#{c.userId}, #{c.name}, #{c.score})
+      (#{c.userId}, #{c.category}, #{c.name}, #{c.score})
     </foreach>
   </insert>
   <select id="findByUserId" resultType="com.study.kgraph.entity.Concept">
-    SELECT id, user_id as userId, name, score FROM concepts WHERE user_id = #{userId}
+    SELECT id, user_id as userId, graph_category as category, name, score FROM concepts WHERE user_id = #{userId}
   </select>
+  <select id="findByUserIdAndCategory" resultType="com.study.kgraph.entity.Concept">
+    SELECT id, user_id as userId, graph_category as category, name, score FROM concepts WHERE user_id = #{userId} AND graph_category = #{category}
+  </select>
+  <delete id="deleteByUserId">
+    DELETE FROM concepts WHERE user_id = #{userId}
+  </delete>
+  <delete id="deleteByUserIdAndCategory">
+    DELETE FROM concepts WHERE user_id = #{userId} AND graph_category = #{category}
+  </delete>
+  <update id="updateCategory">
+    UPDATE concepts SET graph_category = #{newName} WHERE user_id = #{userId} AND graph_category = #{oldName}
+  </update>
 </mapper>

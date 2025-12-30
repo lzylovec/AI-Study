@@ -1,10 +1,71 @@
 let __graphColor = null;
 let __activeRelationKey = null;
 const __themeColor = '#0d6efd';
+const __graphCategoryAll = '__ALL__';
+const __graphCategoryUncategorized = '__UNCATEGORIZED__';
+let __graphCategoryUiInited = false;
 
-async function load() {
+function getSelectedGraphCategory() {
+    const sel = document.getElementById('graph-category');
+    if (!sel) return __graphCategoryAll;
+    const v = (sel.value || '').trim();
+    return v || __graphCategoryAll;
+}
+
+async function initGraphCategoryUi() {
+    const sel = document.getElementById('graph-category');
+    if (!sel || __graphCategoryUiInited) return;
+    __graphCategoryUiInited = true;
+
+    const forceBtn = document.getElementById('graph-force-rebuild');
+    if (forceBtn) {
+        forceBtn.addEventListener('click', () => load(true));
+    }
+
+    sel.addEventListener('change', () => load(false));
+
     try {
-        const r = await fetch('api/graph/build');
+        const r = await fetch('api/notes/categories?_t=' + new Date().getTime());
+        const cats = await r.json();
+        if (Array.isArray(cats)) {
+            const current = getSelectedGraphCategory();
+            sel.innerHTML = '';
+
+            const optAll = document.createElement('option');
+            optAll.value = __graphCategoryAll;
+            optAll.textContent = '全部分类';
+            sel.appendChild(optAll);
+
+            const optUnc = document.createElement('option');
+            optUnc.value = __graphCategoryUncategorized;
+            optUnc.textContent = '未分类';
+            sel.appendChild(optUnc);
+
+            cats.forEach(c => {
+                if (!c) return;
+                const s = String(c).trim();
+                if (!s) return;
+                const o = document.createElement('option');
+                o.value = s;
+                o.textContent = s;
+                sel.appendChild(o);
+            });
+
+            sel.value = current;
+        }
+    } catch (e) {
+    }
+}
+
+async function load(forceRebuild) {
+    try {
+        await initGraphCategoryUi();
+        const cat = getSelectedGraphCategory();
+        const u = new URL('api/graph/build', window.location.href);
+        u.searchParams.set('category', cat);
+        if (forceRebuild) u.searchParams.set('force', '1');
+        u.searchParams.set('_t', String(new Date().getTime()));
+        const r = await fetch(u.toString());
         const data = await r.json();
 
         if (!data || !data.nodes || data.nodes.length === 0) {
@@ -226,7 +287,13 @@ async function showSidebar(node) {
     content.innerHTML = '<div class="text-center mt-5"><div class="spinner-border text-primary"></div></div>';
 
     try {
-        const response = await fetch(`api/notes/search?q=${encodeURIComponent(node.name)}`);
+        const cat = getSelectedGraphCategory();
+        const u = new URL('api/notes/search', window.location.href);
+        u.searchParams.set('q', node.name);
+        if (cat && cat !== __graphCategoryAll) {
+            u.searchParams.set('category', cat);
+        }
+        const response = await fetch(u.toString());
         const notes = await response.json();
 
         if (notes.length === 0) {

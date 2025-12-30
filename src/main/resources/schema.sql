@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS notes (
   text MEDIUMTEXT,
   audio_path VARCHAR(512),
   summary MEDIUMTEXT,
+  category VARCHAR(64) NOT NULL DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -26,12 +27,14 @@ CREATE TABLE IF NOT EXISTS materials (
 CREATE TABLE IF NOT EXISTS concepts (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
+  graph_category VARCHAR(64) NOT NULL DEFAULT '__ALL__',
   name VARCHAR(255) NOT NULL,
   score DOUBLE DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS relations (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
+  graph_category VARCHAR(64) NOT NULL DEFAULT '__ALL__',
   source_id BIGINT NOT NULL,
   target_id BIGINT NOT NULL,
   relation_type VARCHAR(64) DEFAULT 'cooccur',
@@ -61,4 +64,12 @@ CREATE TABLE IF NOT EXISTS note_versions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_task (note_id, version_number),
   KEY idx_note_versions_note_created (note_id, created_at)
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_category (user_id, name)
 );

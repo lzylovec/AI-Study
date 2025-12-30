@@ -129,6 +129,7 @@
                         <div class="card card-custom h-100">
                             <div class="card-body">
                                 <h5 class="card-title fw-bold mb-3 text-truncate" title="${n.title}">${n.title}</h5>
+                                <div class="text-muted small mb-2"><i class="fas fa-tag me-1"></i>${n.category ? n.category : '未分类'}</div>
                                 
                                 <div class="mb-2">
                                     <label class="form-label text-muted small">原始内容</label>
@@ -390,6 +391,7 @@
           const fd = new FormData();
           fd.append('id', id);
           await fetch('api/notes/delete', { method: 'POST', body: fd });
+          await fetch('api/graph/clear', { method: 'POST' });
           showToast('success', '已删除');
           load();
         } catch (e) {

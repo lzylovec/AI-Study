@@ -6,10 +6,14 @@ import com.study.kgraph.mapper.ConceptMapper;
 import com.study.kgraph.mapper.RelationMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 @Service
 public class GraphService {
+    public static final String GRAPH_CATEGORY_ALL = "__ALL__";
+    public static final String GRAPH_CATEGORY_UNCATEGORIZED = "__UNCATEGORIZED__";
+
     @Autowired
     private AiSummaryService aiSummaryService;
     @Autowired
@@ -17,34 +21,81 @@ public class GraphService {
     @Autowired
     private RelationMapper relationMapper;
 
-    public Map<String, Object> extractGraph(Long userId, String text) {
+    public Map<String, Object> getOrBuildGraph(Long userId, String graphCategory, String text, boolean forceRebuild) {
+        String cat = normalizeGraphCategory(graphCategory);
+        if (!forceRebuild) {
+            Map<String, Object> existing = loadGraphFromDb(userId, cat);
+            if (!existing.isEmpty())
+                return existing;
+        }
+        return buildAndSaveGraph(userId, cat, text);
+    }
+
+    private String normalizeGraphCategory(String graphCategory) {
+        if (graphCategory == null)
+            return GRAPH_CATEGORY_ALL;
+        String c = graphCategory.trim();
+        if (c.isEmpty())
+            return GRAPH_CATEGORY_ALL;
+        return c;
+    }
+
+    private String normalizeNoteCategoryToGraphCategory(String noteCategory) {
+        if (noteCategory == null)
+            return GRAPH_CATEGORY_UNCATEGORIZED;
+        String c = noteCategory.trim();
+        if (c.isEmpty())
+            return GRAPH_CATEGORY_UNCATEGORIZED;
+        return c;
+    }
+
+    private Map<String, Object> loadGraphFromDb(Long userId, String graphCategory) {
+        if (userId == null || graphCategory == null || graphCategory.isEmpty())
+            return Collections.emptyMap();
+        List<Concept> nodes = conceptMapper.findByUserIdAndCategory(userId, graphCategory);
+        if (nodes == null || nodes.isEmpty())
+            return Collections.emptyMap();
+        List<Relation> edges = relationMapper.findByUserIdAndCategory(userId, graphCategory);
+        return toJson(nodes, edges);
+    }
+
+    @Transactional
+    public Map<String, Object> buildAndSaveGraph(Long userId, String graphCategory, String text) {
+        if (userId == null || graphCategory == null || graphCategory.isEmpty())
+            return Collections.emptyMap();
+        relationMapper.deleteByUserIdAndCategory(userId, graphCategory);
+        conceptMapper.deleteByUserIdAndCategory(userId, graphCategory);
+
         List<String> kws = keywordsByAi(text, 30);
         List<Concept> nodes = new ArrayList<>();
         for (String k : kws) {
             Concept c = new Concept();
             c.setUserId(userId);
+            c.setCategory(graphCategory);
             c.setName(k);
-            // Simple frequency score
             int freq = countOccurrences(text, k);
             c.setScore((double) freq);
+            conceptMapper.insert(c);
             nodes.add(c);
         }
-        Map<String, Integer> co = cooccurrence(text, kws);
-        Map<String, Long> nameToId = new HashMap<>();
-        int idSeed = 1;
-        for (Concept c : nodes)
-            nameToId.put(c.getName(), (long) (idSeed++));
 
+        Map<String, Long> nameToId = new HashMap<>();
+        for (Concept c : nodes) {
+            if (c.getName() != null && c.getId() != null)
+                nameToId.put(c.getName(), c.getId());
+        }
+
+        Map<String, Integer> co = cooccurrence(text, kws);
         String hub = pickHub(nodes);
         Map<String, Relation> edgesByPair = new HashMap<>();
 
         List<Map<String, Object>> llmRelations = aiSummaryService.extractRelationships(text, kws);
-        mergeRelationsFromLlm(userId, nameToId, edgesByPair, llmRelations);
+        mergeRelationsFromLlm(userId, graphCategory, nameToId, edgesByPair, llmRelations);
 
         List<String> pairs = topPairs(co, hub, 30);
         if (!pairs.isEmpty()) {
             List<Map<String, Object>> labeled = aiSummaryService.labelRelationshipsForPairs(text, pairs);
-            mergeRelationsFromLlm(userId, nameToId, edgesByPair, labeled);
+            mergeRelationsFromLlm(userId, graphCategory, nameToId, edgesByPair, labeled);
         }
 
         if (edgesByPair.isEmpty()) {
@@ -54,29 +105,64 @@ public class GraphService {
                     continue;
                 String a = parts[0];
                 String b = parts[1];
-                addOrMergeEdge(userId, nameToId, edgesByPair, a, b, "cooccur", e.getValue());
+                addOrMergeEdge(userId, graphCategory, nameToId, edgesByPair, a, b, "cooccur", e.getValue());
             }
         }
 
         List<Relation> edges = new ArrayList<>(edgesByPair.values());
+        if (!edges.isEmpty())
+            relationMapper.insertBatch(edges);
 
+        return toJson(nodes, edges);
+    }
+
+    @Transactional
+    public void clearGraph(Long userId, String graphCategory) {
+        if (userId == null)
+            return;
+        String cat = normalizeGraphCategory(graphCategory);
+        relationMapper.deleteByUserIdAndCategory(userId, cat);
+        conceptMapper.deleteByUserIdAndCategory(userId, cat);
+    }
+
+    @Transactional
+    public void clearAllGraphs(Long userId) {
+        if (userId == null)
+            return;
+        relationMapper.deleteByUserId(userId);
+        conceptMapper.deleteByUserId(userId);
+    }
+
+    @Transactional
+    public void clearGraphsForNoteCategory(Long userId, String noteCategory) {
+        if (userId == null)
+            return;
+        clearGraph(userId, GRAPH_CATEGORY_ALL);
+        clearGraph(userId, normalizeNoteCategoryToGraphCategory(noteCategory));
+    }
+
+    private Map<String, Object> toJson(List<Concept> nodes, List<Relation> edges) {
         Map<String, Object> json = new HashMap<>();
         List<Map<String, Object>> jsonNodes = new ArrayList<>();
-        for (Concept c : nodes) {
-            Map<String, Object> n = new HashMap<>();
-            n.put("id", nameToId.get(c.getName()));
-            n.put("name", c.getName());
-            n.put("score", c.getScore());
-            jsonNodes.add(n);
+        if (nodes != null) {
+            for (Concept c : nodes) {
+                Map<String, Object> n = new HashMap<>();
+                n.put("id", c.getId());
+                n.put("name", c.getName());
+                n.put("score", c.getScore());
+                jsonNodes.add(n);
+            }
         }
         List<Map<String, Object>> jsonEdges = new ArrayList<>();
-        for (Relation r : edges) {
-            Map<String, Object> m = new HashMap<>();
-            m.put("source", r.getSourceId());
-            m.put("target", r.getTargetId());
-            m.put("weight", r.getWeight());
-            m.put("relation", r.getRelationType()); // Pass relation type to frontend
-            jsonEdges.add(m);
+        if (edges != null) {
+            for (Relation r : edges) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("source", r.getSourceId());
+                m.put("target", r.getTargetId());
+                m.put("weight", r.getWeight());
+                m.put("relation", r.getRelationType());
+                jsonEdges.add(m);
+            }
         }
         json.put("nodes", jsonNodes);
         json.put("links", jsonEdges);
@@ -149,7 +235,8 @@ public class GraphService {
         return out;
     }
 
-    private void mergeRelationsFromLlm(Long userId, Map<String, Long> nameToId, Map<String, Relation> edgesByPair,
+    private void mergeRelationsFromLlm(Long userId, String graphCategory, Map<String, Long> nameToId,
+            Map<String, Relation> edgesByPair,
             List<Map<String, Object>> llmRelations) {
         if (llmRelations == null || llmRelations.isEmpty())
             return;
@@ -177,13 +264,15 @@ public class GraphService {
                 } catch (Exception ignored) {
                 }
             }
-            addOrMergeEdge(userId, nameToId, edgesByPair, s, t, type, weight == null ? 1 : weight);
+            addOrMergeEdge(userId, graphCategory, nameToId, edgesByPair, s, t, type, weight == null ? 1 : weight);
         }
     }
 
-    private void addOrMergeEdge(Long userId, Map<String, Long> nameToId, Map<String, Relation> edgesByPair, String a,
+    private void addOrMergeEdge(Long userId, String graphCategory, Map<String, Long> nameToId,
+            Map<String, Relation> edgesByPair, String a,
             String b, String relation, Integer weight) {
-        if (a == null || b == null || relation == null || nameToId == null || edgesByPair == null)
+        if (a == null || b == null || relation == null || nameToId == null || edgesByPair == null
+                || graphCategory == null || graphCategory.isEmpty())
             return;
         Long aId = nameToId.get(a);
         Long bId = nameToId.get(b);
@@ -194,6 +283,7 @@ public class GraphService {
         String pairKey = sId + "|" + tId;
         Relation candidate = new Relation();
         candidate.setUserId(userId);
+        candidate.setCategory(graphCategory);
         candidate.setSourceId(sId);
         candidate.setTargetId(tId);
         candidate.setRelationType(relation);
